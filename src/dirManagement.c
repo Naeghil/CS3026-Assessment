@@ -1,7 +1,6 @@
 #include "dirManagement.h"
 
-extern pathStruct root;
-extern fileSys directoryHierarchy;
+extern fileSys* directoryHierarchy;
 extern fileSys* workingDir;
 extern MyFILE* currentlyOpen;
 
@@ -63,3 +62,16 @@ direntry_t* getEntry(diskblock_t* block, int idx) {
     return toReturn;
 }
 
+fileSys* makeNode(direntry_t* entry) {
+    fileSys *toRet = malloc(sizeof(char)*entry->nameLength+sizeof(bool)+sizeof(short)+sizeof(struct fileSystemNode*)*(entry->childrenNo+1));
+    memset(toRet->name, '\0', entry->nameLength);
+    strcpy(toRet->name, entry->name);
+    ///TODO: this is wrong
+    ///Maybe if the entries are written out in a specific way there is no actual need to 
+    ///use ids and shit, so the parent is not even needed
+    toRet->parent = entry->parent;
+    toRet->childrenNo = entry->childrenNo;
+    for(int i=0; i<toRet->childrenNo; i++) toRet->children[i] = NULL;
+
+    return toRet;
+}

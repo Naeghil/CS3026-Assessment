@@ -1,6 +1,7 @@
 #include "fileSys.h"
 
 fatentry_t FAT[MAXBLOCKS];
+fileSys* directoryHierarchy;
 
 ///TODO: Is this needed?
 //maintain the number of entries per block to speed up entry retrieval
@@ -26,8 +27,7 @@ void format () {
     block.fat[0] = ENDOFCHAIN;
     block.fat[FATBLOCKSNO+1] = ENDOFCHAIN; //for root directory
     writeblock(&block, 1);
-    ///Prepare root directory
-    ///TODO: actually needs to initialize the first entry to the root entry
+    ///Prepare the directory block
     block = initDirBlock(0);
     time_t now; time(&now);
     direntry_t *root = initDirEntry(now, -1, FATBLOCKSNO+1, strlen(""), 0, "");
@@ -50,7 +50,8 @@ void initStructs(){
         readblock(&dirBlocks[i], ptr);
         ptr=FAT[ptr];
     }
-    ///TODO: do this
+    //TODO: initialize directory hierarchy to root
+    // make a creator function to make nodes that takes in direntries
 
 }
 
