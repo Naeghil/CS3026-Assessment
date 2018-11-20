@@ -52,7 +52,6 @@ typedef struct direntry {
 //man this'll be super hard to maintain fk
 typedef struct dirEntry {
     time_t          modtime; //time last modified
-    short           parent; //idx of the parent; TODO: ?? for the root, this is the number of entries used up to now
     fatentry_t      firstblock; // first block of a file; dirblock of the entry for subdirectories?
     signed char     nameLength; //supports names up to 127 characters, extension included; if -1, the entry is unused
     signed char     childrenNo; //supports a maximum of 127 children; -1 if it's a file

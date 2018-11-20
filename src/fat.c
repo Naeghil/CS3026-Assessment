@@ -16,3 +16,9 @@ bool freeChain(fatentry_t start, fatentry_t FAT[MAXBLOCKS]) {
     }
     return possible;
 }
+
+fatentry_t lastBlockOf(fatentry_t start) {
+    fatentry_t toRet = start;
+    while(FAT[toRet]!=ENDOFCHAIN) toRet = FAT[toRet];
+    return toRet;
+}

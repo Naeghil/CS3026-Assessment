@@ -13,7 +13,7 @@ extern directoryTable  secondLvlDirIdx;
 
 
 
-direntry_t* initDirEntry(time_t mTime, short parent, short fBlock, signed char nLen, signed char cNo, char* name) {
+direntry_t* initDirEntry(time_t mTime, short fBlock, signed char nLen, signed char cNo, char* name) {
     direntry_t *newEntry;
     newEntry = malloc(sizeof(time_t)+sizeof(short)*2+2+nLen);
     newEntry->childrenNo = cNo;
@@ -22,7 +22,6 @@ direntry_t* initDirEntry(time_t mTime, short parent, short fBlock, signed char n
     newEntry->nameLength = nLen;
     memset(newEntry->name, '\0', nLen);
     strcpy(newEntry->name, name);
-    newEntry->parent = parent;
     return newEntry;
 }
 
@@ -46,10 +45,10 @@ int getEntryOffset(diskblock_t* block, int idx) {
     for(int i=0; i<idx; i++) {
         char entryNameSize;
         //time_t = 4B, short = 2B, char = 1B
-        //time_t+2*short = 8
-        memmove(&entryNameSize, &block->data[offset+8], sizeof(char));
-        //time_t+2*short+2*char = 10
-        offset += 10+entryNameSize;
+        //time_t+short = 6
+        memmove(&entryNameSize, &block->data[offset+6], sizeof(char));
+        //time_t+short+2*char = 8
+        offset += 8+entryNameSize;
     }
     return offset;
 }
@@ -62,16 +61,21 @@ direntry_t* getEntry(diskblock_t* block, int idx) {
     return toReturn;
 }
 
-fileSys* makeNode(direntry_t* entry) {
-    fileSys *toRet = malloc(sizeof(char)*entry->nameLength+sizeof(bool)+sizeof(short)+sizeof(struct fileSystemNode*)*(entry->childrenNo+1));
-    memset(toRet->name, '\0', entry->nameLength);
-    strcpy(toRet->name, entry->name);
-    ///TODO: this is wrong
-    ///Maybe if the entries are written out in a specific way there is no actual need to 
-    ///use ids and shit, so the parent is not even needed
-    toRet->parent = entry->parent;
-    toRet->childrenNo = entry->childrenNo;
-    for(int i=0; i<toRet->childrenNo; i++) toRet->children[i] = NULL;
+fileSys* makeDirTree(direntry_t all[], int idx, int parentidx) {
+    //make an array of nodes using makeNode
+    //use this function to connect them together in a tree-way
+}
+
+
+
+fileSys* makeNode(char* name, time_t modTime, fatentry_t fBlock, short childrenNo) {
+    fileSys *toRet = malloc(sizeof(fileSys));
+    toRet->name = malloc(sizeof(name));
+    strcpy(toRet->name, name);
+    toRet->modTime = modTime;
+    toRet->firstBlock = fBlock;
+    toRet->children = malloc(sizeof(fileSys*)*childrenNo);
+    for(int i=0; i<sizeof(toRet->children); i++) toRet->children[i] = NULL;
 
     return toRet;
 }

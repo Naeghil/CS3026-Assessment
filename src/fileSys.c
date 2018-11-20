@@ -30,7 +30,7 @@ void format () {
     ///Prepare the directory block
     block = initDirBlock(0);
     time_t now; time(&now);
-    direntry_t *root = initDirEntry(now, -1, FATBLOCKSNO+1, strlen(""), 0, "");
+    direntry_t *root = initDirEntry(now, FATBLOCKSNO+1, strlen(""), 0, "");
     insertDirEntry(&block, root);
     writeblock(&block, FATBLOCKSNO);
 }
@@ -42,14 +42,21 @@ void initStructs(){
     for(int i=0; i<MAXBLOCKS; i++) FAT[i] = fatBlocks[(int) i/FATENTRYCOUNT].fat[i%FATENTRYCOUNT];
 
     ///Initialize directory hierarchy:
-    int dirBlocksCount = 0;
-    for(int i=FATBLOCKSNO+1; i!=ENDOFCHAIN; i=FAT[i]) dirBlocksCount++;
-    diskblock_t dirBlocks[dirBlocksCount];
+    int entryCount;
+    diskblock_t buffBlock;
+    readblock(&buffBlock, lastBlockOf(FATBLOCKSNO+1));
+    entryCount = buffBlock.dir.nextId + buffBlock.dir.entryCount;
+    direntry_t allEntries[entryCount];
     fatentry_t ptr = FATBLOCKSNO+1;
-    for(int i=0; i<dirBlocksCount; i++) {
-        readblock(&dirBlocks[i], ptr);
-        ptr=FAT[ptr];
+    readblock(&buffBlock, ptr);
+    for(int i=0; i<entryCount; i++) {
+        if(i==(buffBlock.dir.nextId+buffBlock.dir.entryCount)) {
+            ptr = FAT[ptr];
+            readblock(&buffBlock, ptr);
+        }
+        allEntries[i] = *getEntry(&buffBlock, i);
     }
+
     //TODO: initialize directory hierarchy to root
     // make a creator function to make nodes that takes in direntries
 
