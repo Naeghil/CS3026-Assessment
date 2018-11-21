@@ -1,4 +1,4 @@
-#include "shell.h"
+#include "../include/shell.h"
 
 ///Extern declarations:
 bool session;
@@ -10,6 +10,7 @@ MyFILE* currentlyOpen;
 const char* argErr = "Invalid arguments.";
 const char* flagErr = "%s is not a recognised flag.";
 const char* noOpenFile = "No file is currently open.";
+const char* fileOpen    = "A file is currently open.";
 const char* notSaved = "The file could not be saved.";
 
 ///The manual entries:
@@ -132,8 +133,8 @@ void quit(int argc, char** argv){
 };
 //saves the disk to file
 void save(int argc, char** argv){
-
     if(argc>1) { printf(argErr); return; }
+    if(currentlyOpen!=NULL) {printf(fileOpen); return; }
     char* path = (argc==1) ? argv[0] : "vDisk";
     saveVDisk();
     if(!writedisk(path)) printf("The disk couldn't be saved to file. \n");

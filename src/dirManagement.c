@@ -1,17 +1,8 @@
-#include "dirManagement.h"
+#include "../include/dirManagement.h"
 
 extern fileSys* directoryHierarchy;
 extern fileSys* workingDir;
 extern MyFILE* currentlyOpen;
-
-///TODO: check if this stuff is needed
-//maintain the number of entries per block to speed up entry retrieval
-//This works like a two-level indexing: when an entry is needed, iterate through this array
-//and subtract the values each time
-//an entry has a minimum sie of 14b and a maximum size of 394b; the medium is of
-extern directoryTable  secondLvlDirIdx;
-
-
 
 direntry_t* initDirEntry(time_t mTime, short fBlock, signed char nLen, signed char cNo, char* name) {
     direntry_t *newEntry;
@@ -61,21 +52,34 @@ direntry_t* getEntry(diskblock_t* block, int idx) {
     return toReturn;
 }
 
-fileSys* makeDirTree(direntry_t all[], int idx, int parentidx) {
-    //make an array of nodes using makeNode
-    //use this function to connect them together in a tree-way
+fileSys* makeDirTree(direntry_t all[], int cardinality) {
+    fileSys** allNodes = malloc(sizeof(fileSys*)*cardinality);
+    for(int i=0; i<cardinality; i++) allNodes[i] = all[i];
+    int childIdx = 1;
+    for(int nodeIdx = 0; i<cardinality; i++) {
+        for(int i = 0; i<allNodes[nodeIdx]->childrenNo; i++) {
+            allNodes[nodeIdx]->children[i] = allNodes[childIdx];
+            allNodes[childIdx]->parent = allNodes[nodeIdx];
+            childIdx++;
+        }
+    }
+    fileSys* root = allNodes[0];
+    free(allNodes);
+    return root;
 }
 
-
-
-fileSys* makeNode(char* name, time_t modTime, fatentry_t fBlock, short childrenNo) {
+fileSys* makeNode(direntry_t entry) {
     fileSys *toRet = malloc(sizeof(fileSys));
     toRet->name = malloc(sizeof(name));
-    strcpy(toRet->name, name);
-    toRet->modTime = modTime;
-    toRet->firstBlock = fBlock;
-    toRet->children = malloc(sizeof(fileSys*)*childrenNo);
-    for(int i=0; i<sizeof(toRet->children); i++) toRet->children[i] = NULL;
+    strcpy(toRet->name, entry.name);
+    toRet->modTime = entry.modtime;
+    toRet->firstBlock = entry.firstblock;
+    toRet->childrenNo = entry.childrenNo;
+    toRet->children = malloc(sizeof(fileSys*)*entry.childrenNo);
+    for(int i=0; i<toRet->childrenNo; i++) toRet->children[i] = NULL;
 
     return toRet;
 }
+
+bool isFile(fileSys* node) { return node->firstBlock != -1; };
+

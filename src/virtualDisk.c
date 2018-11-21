@@ -1,6 +1,6 @@
-#include "virtualDisk.h"
+#include "../include/virtualDisk.h"
 
-extern diskblock_t virtualDisk[MAXBLOCKS];
+diskblock_t virtualDisk[MAXBLOCKS];
 
 // writedisk : writes virtual disk out to physical disk
 bool writedisk ( const char * filename ) {

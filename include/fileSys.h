@@ -56,10 +56,11 @@ char* workingDirPath();
 
 ///Functions for virtualDisk
 void format();
-void writeFat();
 //writes fat to virtual disk
-    //writeFat();
-    ///TODO: write all non-saved blocks to virtual disk, write directory blocks to virtual disk, implement this stuff in the following function
+void writeFat();
+//writes the directory hierarchy to the virtual disk
+void writeDirectory();
+//Writes FAT and directory to disk; this shouldn't take care of eventually open files;
 void saveVDisk();
 bool isDiskFile(FILE *);
 void loadDiskFromFile(FILE*);

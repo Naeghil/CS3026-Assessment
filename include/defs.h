@@ -4,6 +4,7 @@
 ///this file includes basic macro definitions
 ///as well as low level typedefs
 
+#include <stdlib.h>
 #include <stdbool.h>
 #include <string.h>
 #include <time.h>

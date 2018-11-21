@@ -1,0 +1,3 @@
+/obj
+/bin
+CS3026-Assessment.cbp

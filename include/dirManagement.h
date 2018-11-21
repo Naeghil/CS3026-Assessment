@@ -3,6 +3,7 @@
 
 #include "defs.h"
 
+//May not be needed
 typedef struct {
     bool isFile;
     bool isEmpty;
@@ -17,6 +18,8 @@ typedef struct fileSystemNode {
     char* name; //name of the file or directory
     time_t modTime;
     fatentry_t firstBlock;
+    struct fileSystemNode* parent;
+    int childrenNo;
     struct fileSystemNode** children;
 } fileSys;
 
@@ -31,9 +34,8 @@ direntry_t* initDirEntry(time_t, short, signed char, signed char, char*);
 void insertDirEntry(diskblock_t*, direntry_t*);
 int getEntryOffset(diskblock_t*, int);
 direntry_t* getEntry(diskblock_t*, int);
-fileSys* makeNode();
-bool isFile(fileSys* node) { return node->firstBlock != -1; };
-
+fileSys* makeNode(direntry_t);
+bool isFile(fileSys*);
 
 
 #endif // DIRMANAGEMENT_H

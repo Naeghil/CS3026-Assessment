@@ -1,4 +1,4 @@
-#include "fat.h"
+#include "../include/fat.h"
 
 extern fatentry_t FAT[MAXBLOCKS];          //maintain the FAT
 

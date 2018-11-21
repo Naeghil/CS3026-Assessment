@@ -1,15 +1,7 @@
-#include "fileSys.h"
+#include "../include/fileSys.h"
 
 fatentry_t FAT[MAXBLOCKS];
 fileSys* directoryHierarchy;
-
-///TODO: Is this needed?
-//maintain the number of entries per block to speed up entry retrieval
-//This works like a two-level indexing: when an entry is needed, iterate through this array
-//and subtract the values each time
-//an entry has a minimum sie of 14b and a maximum size of 394b; the medium is of
-directoryTable      secondLvlDirIdx;
-
 
 void format () {
     diskblock_t block = resetBlock();
@@ -32,9 +24,11 @@ void format () {
     time_t now; time(&now);
     direntry_t *root = initDirEntry(now, FATBLOCKSNO+1, strlen(""), 0, "");
     insertDirEntry(&block, root);
+    free(root);
     writeblock(&block, FATBLOCKSNO);
 }
 
+//Used to initialise structures maintained at runtime
 void initStructs(){
     ///Initialize fat:
     diskblock_t fatBlocks[FATBLOCKSNO];
@@ -56,18 +50,74 @@ void initStructs(){
         }
         allEntries[i] = *getEntry(&buffBlock, i);
     }
-
-    //TODO: initialize directory hierarchy to root
-    // make a creator function to make nodes that takes in direntries
-
+    directoryHierarchy = makeDirTree(allEntries, entryCount);
 }
 
 void writeFat() {
-    diskblock_t fatBlock = resetBlock();
+    diskblock_t fatBlock;
     for (int i=0; i<FATBLOCKSNO; i++) {
+        fatBlock = resetBlock();
         for(int j=0; j<FATENTRYCOUNT; j++) fatBlock.fat[j] = FAT[i*FATENTRYCOUNT+j];
         writeblock(&fatBlock, i+1);
     }
+}
+
+void writeDirectory() {
+    //Make a sequence of entries in the way they need to be stored
+    fileSys* dir[MAXPATHLENGTH];
+    int nodes = 0;
+    int idx =1;
+    direntry_t* entries[MAXPATHLENGTH];
+    dir[0] = directoryHierarchy;
+    while(nodes<=idx) {
+        for(int i=0; i<dir[nodes]->childrenNo; i++) {
+            dir[idx] = dir[nodes]->children[i];
+            idx++;
+        }
+        nodes++;
+    }
+    for(int i=0; i<nodes; i++) entries = initDirEntry(dir[i]->modTime, dir[i]->firstBlock, signed char (sizeof(dir[i]->name)), dir[i]->childrenNo, dir[i]->name);
+
+    //Overwrite the current directories
+    idx = 0;
+    diskblock_t buff = resetBlock();
+    fatentry_t lastDirBlock = FATBLOCKSNO+1;
+    size_t buffSize =0;
+    for(int i=0; i<nodes; i++) {
+        //count the entries and fill the buffSize
+        //when it overflows buffSize overflows, write the block and get a new one;
+            //if (FAT[lastDirBlock]==ENDOFCHAIN) lastDirBlock = getNewBlock(lastDirBlock);
+            //else lastDirBlock = FAT[lastDirBlock];
+    }
+
+    //if more are needed, get them
+    //this probably introduces the "getFreeCell" function from the fat.h
+        //getNewBlock(fatentry_t from): if from is not -1, set FAT[from] to toRet; set FAT[toRet] to ENDOFCHAIN and return it;
+    //just get the first free one
+    //lastly, check if less directories are needed, in which case the fat needs to be modified accordingly
+
+}
+
+char* workingDirPath() {
+    char path[MAXPATHLENGTH];
+    fileSys* dir[MAXPATHLENGTH];
+    dir[0] = workingDir;
+    int pLength = 0;
+    while(dir[pLength]->parent!=NULL) {
+        pLength++;
+        dir[pLength] = dir[pLength-1]->parent;
+    }
+    for(int i=pLength; i>=0; i++) {
+        strcat(path, "$\\")
+        strcat(path, dir[i]->name);
+    }
+    return strcat(path, ">");
+}
+
+void saveVDisk() {
+    //writeDirectory first because it can change FAT;
+    writeDirectory();
+    writeFat();
 }
 /*
 file* myfopen(const char* fName, const char* mode) {
