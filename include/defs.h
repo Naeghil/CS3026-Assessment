@@ -65,13 +65,17 @@ typedef struct dirblock {
    int isdir ;
    direntry_t entrylist [ DIRENTRYCOUNT ] ; //a directory can only have DIRENTRYCOUNT between subdirs and files?
 } dirblock_t ; */
-//fffffffffkkkk; it needs compaction once in a while
+/* With the known storage, this is not needed
 typedef struct dirblock {
     short       nextId; // the id of the first entry
     char        entryCount;
     char        isFull; // are all the entries used? this will be needed to "compact" the filesys once in a while
     direntry_t  entries[];
-} dirblock_t;
+} dirblock_t; */
+typedef struct dirblock {
+    char        entryCount;
+    direntry_t  entries[];
+}
 
 /// a block can be either a directory block, a FAT block or actual data
 typedef union block {
@@ -82,7 +86,7 @@ typedef union block {
 
 /// created when a file is opened on the disk
 typedef struct filedescriptor {
-   char        mode[3] ;
+   char        mode[2] ;
    fatentry_t  firstBlock ;
    fatentry_t  blockNo ;           // block no
    int         pos     ;           // byte within a block

@@ -157,7 +157,6 @@ void load(int argc, char** argv){
 //changes the working directory to the specified directory; to root if no argument provided
 void cd(int argc, char** argv){
     if(argc>1) printf(argErr);
-    ///TODO: implement parsePath and the hierachy tree
     else if(argc==1) mychdir(parsePath(argv[0]));
     else mychdir(root);
 };
@@ -166,8 +165,9 @@ void ls(int argc, char** argv){
     char** contents;
     if(argc>1) printf(argErr);
     else if(argc==1) contents = mylistdir(parsePath(argv[0]));
-    else contents = mylistdir(getPath(workingDir));
-    for(int i=0; contents[i]!=NULL; i++) printf("%s  ", contents[i]);
+    else contents = mylistdir(workingDir);
+    for(int i=0; contents[i]!=NULL; i++) { printf("%s  ", contents[i]); free(contents[i]); }
+    free(contents[sizeof(contents)-1]);
 };
 //creates a new directory (together with specified subdirectories); can accept absolute path
 void mkDir(int argc, char** argv){
@@ -178,16 +178,16 @@ void mkDir(int argc, char** argv){
 void rm(int argc, char** argv){
     if((argc==0)||(argc>2)) printf(argErr);
     else {
-        pathStruct *path = NULL;
+        pathStruct* path = NULL;
         if(argc==1) {
-                *path = parsePath(argv[0]);
-                if(path->isFile) myremove(*path);
-                else if(path->isEmpty) myrmdir(*path);
+                path = parsePath(argv[0]);
+                if(path.isFile) myremove(path);
+                else if(path.childrenNo==0) myrmdir(path);
                 else printf("The directory is not empty!");
         } else if(strcmp(argv[0], "-f")==0) {
-                *path = parsePath(argv[1]);
-                if(path->isFile) myremove(*path);
-                else myrmdir(*path);
+                path = parsePath(argv[1]);
+                if(path.isFile) myremove(path);
+                else myrmdir(path);
         } else printf(flagErr, argv[0]);
     }
 };

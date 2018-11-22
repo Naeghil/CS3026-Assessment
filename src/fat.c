@@ -2,19 +2,21 @@
 
 extern fatentry_t FAT[MAXBLOCKS];          //maintain the FAT
 
-bool freeBlock(fatentry_t idx, fatentry_t FAT[MAXBLOCKS]) {
+bool freeBlock(fatentry_t idx) {
     if (idx<=FATBLOCKSNO) return false;
     FAT[idx] = UNUSED;
     return true;
 }
 
-bool freeChain(fatentry_t start, fatentry_t FAT[MAXBLOCKS]) {
-    bool possible = true;
+void freeChain(fatentry_t start) {
     fatentry_t ptr = start;
+    fatentry_t rem;
     while (ptr!= ENDOFCHAIN) {
-        ///TODO: finish implementation
+        rem = ptr;
+        ptr = FAT[ptr];
+        FAT[rem] = UNUSED;
     }
-    return possible;
+    FAT[ptr] = UNUSED;
 }
 
 fatentry_t lastBlockOf(fatentry_t start) {
@@ -22,3 +24,16 @@ fatentry_t lastBlockOf(fatentry_t start) {
     while(FAT[toRet]!=ENDOFCHAIN) toRet = FAT[toRet];
     return toRet;
 }
+
+fatentry_t getNewBlock(fatentry_t from) {
+    fatentry_t toRet = from;
+    for(toRet; toRet<MAXBLOCKS; toRet++) if(FAT[toRet+1] == UNUSED) break;
+    if(FAT[toRet+1]!=UNUSED) for(toRet = FATBLOCKSNO+1; toRet<from-1; toRet++) if(FAT[toRet+1] == UNUSED) break;
+    toRet++;
+    if(FAT[toRet] != UNUSED) { printf("Memory full."); return -2; }
+
+    if(FAT[from]!=ENDOFCHAIN) FAT[from] = toRet;
+    FAT[toRet] = ENDOFCHAIN;
+    return toRet;
+}
+

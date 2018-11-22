@@ -45,6 +45,7 @@ void myrmdir ( pathStruct );
 void mychdir ( pathStruct );
 //Returns an array of strings listing the contents of an existing directory
 char ** mylistdir ( pathStruct );
+char ** mylistdir ( fileSys* );
 //moves source to destination
 void myMvDir( pathStruct, pathStruct );
 //copies source to destination

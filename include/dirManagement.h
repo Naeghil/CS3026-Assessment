@@ -3,13 +3,12 @@
 
 #include "defs.h"
 
-//May not be needed
 typedef struct {
     bool isFile;
-    bool isEmpty;
+    bool isValid;
     bool isAbsolute;
     //NULL terminating array of existing path "components"
-    char** existing;
+    fileSys** existing;
     //NULL terminating array of non-existing path "components"; determines path validity
     char** nonExisting;
 } pathStruct;
@@ -29,7 +28,6 @@ void newFile(const char*, MyFILE*);
 
 pathStruct getPath(fileSys*);
 
-diskblock_t initDirBlock(short);
 direntry_t* initDirEntry(time_t, short, signed char, signed char, char*);
 void insertDirEntry(diskblock_t*, direntry_t*);
 int getEntryOffset(diskblock_t*, int);

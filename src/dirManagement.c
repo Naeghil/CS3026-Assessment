@@ -16,15 +16,6 @@ direntry_t* initDirEntry(time_t mTime, short fBlock, signed char nLen, signed ch
     return newEntry;
 }
 
-diskblock_t initDirBlock(short nextIdx) {
-    diskblock_t newDir;
-    for(int i=0; i<BLOCKSIZE; i++) newDir.data[i] = '\0';
-    newDir.dir.entryCount = 0;
-    newDir.dir.isFull = false;
-    newDir.dir.nextId = nextIdx;
-    return newDir;
-}
-
 void insertDirEntry(diskblock_t* block, direntry_t* entry) {
     int offset = getEntryOffset(block, block->dir.entryCount);
     memmove(&block->data[offset], entry, sizeof(*entry)+entry->nameLength);
@@ -32,7 +23,8 @@ void insertDirEntry(diskblock_t* block, direntry_t* entry) {
 }
 
 int getEntryOffset(diskblock_t* block, int idx) {
-    int offset = 5;
+    ///TODO: check this
+    int offset = 1;
     for(int i=0; i<idx; i++) {
         char entryNameSize;
         //time_t = 4B, short = 2B, char = 1B
