@@ -46,9 +46,9 @@ direntry_t* getEntry(diskblock_t* block, int idx) {
 
 fileSys* makeDirTree(direntry_t all[], int cardinality) {
     fileSys** allNodes = malloc(sizeof(fileSys*)*cardinality);
-    for(int i=0; i<cardinality; i++) allNodes[i] = all[i];
+    for(int i=0; i<cardinality; i++) allNodes[i] = makeNode(all[i]);
     int childIdx = 1;
-    for(int nodeIdx = 0; i<cardinality; i++) {
+    for(int nodeIdx = 0; nodeIdx<cardinality; nodeIdx++) {
         for(int i = 0; i<allNodes[nodeIdx]->childrenNo; i++) {
             allNodes[nodeIdx]->children[i] = allNodes[childIdx];
             allNodes[childIdx]->parent = allNodes[nodeIdx];
@@ -62,7 +62,7 @@ fileSys* makeDirTree(direntry_t all[], int cardinality) {
 
 fileSys* makeNode(direntry_t entry) {
     fileSys *toRet = malloc(sizeof(fileSys));
-    toRet->name = malloc(sizeof(name));
+    toRet->name = malloc(entry.nameLength);
     strcpy(toRet->name, entry.name);
     toRet->modTime = entry.modtime;
     toRet->firstBlock = entry.firstblock;
