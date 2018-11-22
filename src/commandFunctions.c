@@ -3,7 +3,7 @@
 ///Extern declarations:
 bool session;
 pathStruct root;
-fileSys* workingDir;
+dirNode* workingDir;
 MyFILE* currentlyOpen;
 
 ///Error Messages:
@@ -85,10 +85,8 @@ char* manual[AVAILABLECMDS] = {
         "\t\tWhen this flag is provided only the commands 'rd' and 'rl' are available for the file (readonly mode)\n"
     "\t-w:\n"
         "\t\tWhen this flag is provided the commands 'rd', 'rl', wl' and 'rml' will be available for the file (write/read/append mode)",
-"close [-f|-e]\n"
+"close [-e]\n"
     "\tCloses the currently open file if there is one, and tries and save its contents to the virtual disk.\n"
-    "\t-f:\n"
-        "\t\tWhen this flag is provided, the file will be closed even if its contents couldn't be saved.\n"
     "\t-e:\n"
         "\t\tWhen this flag is provided, the last changes not automatically saved won't be saved to disk.",
 "sf\n"
@@ -164,7 +162,7 @@ void cd(int argc, char** argv){
 void ls(int argc, char** argv){
     char** contents;
     if(argc>1) printf(argErr);
-    else if(argc==1) contents = mylistdir(parsePath(argv[0]));
+    else if(argc==1) contents = mylistpath(parsePath(argv[0]));
     else contents = mylistdir(workingDir);
     for(int i=0; contents[i]!=NULL; i++) { printf("%s  ", contents[i]); free(contents[i]); }
     free(contents[sizeof(contents)-1]);
@@ -178,11 +176,11 @@ void mkDir(int argc, char** argv){
 void rm(int argc, char** argv){
     if((argc==0)||(argc>2)) printf(argErr);
     else {
-        pathStruct* path = NULL;
+        pathStruct path;
         if(argc==1) {
                 path = parsePath(argv[0]);
                 if(path.isFile) myremove(path);
-                else if(path.childrenNo==0) myrmdir(path);
+                else if(path.dir->childrenNo==0) myrmdir(path);
                 else printf("The directory is not empty!");
         } else if(strcmp(argv[0], "-f")==0) {
                 path = parsePath(argv[1]);
@@ -216,9 +214,6 @@ void closef(int argc, char** argv){
     if(argc>1) printf(argErr);
     else if(currentlyOpen == NULL) printf(noOpenFile);
     else if(argc==0) {
-        if(saveFile()) myfclose();
-        else printf(notSaved);
-    } else if(strcmp(argv[0], "-f")==0) {
         saveFile();
         myfclose();
     } else if(strcmp(argv[0], "-e")==0) myfclose();
@@ -227,7 +222,8 @@ void closef(int argc, char** argv){
 //saves the contents of an open file to the virtual disk
 void savef(int argc, char** argv){
     if(argc!=0) printf(argErr);
-    else if(!saveFile()) printf(notSaved);
+    else if (currentlyOpen == NULL) printf(noOpenFile);
+    else saveFile();
 };
 // prints to screen the contents of an open file, or a specified file without opening it
 void myRead(int argc, char** argv){

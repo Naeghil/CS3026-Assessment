@@ -1,7 +1,7 @@
 #include "../include/dirManagement.h"
 
-extern fileSys* directoryHierarchy;
-extern fileSys* workingDir;
+extern dirNode* directoryHierarchy;
+extern dirNode* workingDir;
 extern MyFILE* currentlyOpen;
 
 direntry_t* initDirEntry(time_t mTime, short fBlock, signed char nLen, signed char cNo, char* name) {
@@ -29,7 +29,7 @@ int getEntryOffset(diskblock_t* block, int idx) {
         char entryNameSize;
         //time_t = 4B, short = 2B, char = 1B
         //time_t+short = 6
-        memmove(&entryNameSize, &block->data[offset+6], sizeof(char));
+        memmove(&entryNameSize, &block->data[offset+6], 1);
         //time_t+short+2*char = 8
         offset += 8+entryNameSize;
     }
@@ -37,15 +37,15 @@ int getEntryOffset(diskblock_t* block, int idx) {
 }
 
 direntry_t* getEntry(diskblock_t* block, int idx) {
-    int offset = getEntryOffset(block, idx-block->dir.nextId);
-    int size = getEntryOffset(block, idx-block->dir.nextId+1) - offset;
+    int offset = getEntryOffset(block, idx);
+    int size = getEntryOffset(block, idx+1) - offset;
     direntry_t* toReturn = malloc(size);
     memmove(toReturn, &block->data[offset], size);
     return toReturn;
 }
 
-fileSys* makeDirTree(direntry_t all[], int cardinality) {
-    fileSys** allNodes = malloc(sizeof(fileSys*)*cardinality);
+dirNode* makeDirTree(direntry_t all[], int cardinality) {
+    dirNode** allNodes = malloc(sizeof(dirNode*)*cardinality);
     for(int i=0; i<cardinality; i++) allNodes[i] = makeNode(all[i]);
     int childIdx = 1;
     for(int nodeIdx = 0; nodeIdx<cardinality; nodeIdx++) {
@@ -55,23 +55,57 @@ fileSys* makeDirTree(direntry_t all[], int cardinality) {
             childIdx++;
         }
     }
-    fileSys* root = allNodes[0];
+    dirNode* root = allNodes[0];
     free(allNodes);
     return root;
 }
 
-fileSys* makeNode(direntry_t entry) {
-    fileSys *toRet = malloc(sizeof(fileSys));
+dirNode* makeNode(direntry_t entry) {
+    dirNode *toRet = malloc(sizeof(dirNode));
     toRet->name = malloc(entry.nameLength);
     strcpy(toRet->name, entry.name);
     toRet->modTime = entry.modtime;
     toRet->firstBlock = entry.firstblock;
     toRet->childrenNo = entry.childrenNo;
-    toRet->children = malloc(sizeof(fileSys*)*entry.childrenNo);
+    toRet->children = malloc(sizeof(dirNode*)*entry.childrenNo);
     for(int i=0; i<toRet->childrenNo; i++) toRet->children[i] = NULL;
 
     return toRet;
 }
 
-bool isFile(fileSys* node) { return node->firstBlock != -1; };
+dirNode* createNode(char* name, fatentry_t fBlock, int cNo, dirNode* parent) {
+    dirNode* toRet = malloc(sizeof(dirNode));
+    toRet->name = malloc(sizeof(name));
+    strcpy(toRet->name, name);
+    time(&toRet->modTime);
+    toRet->firstBlock = fBlock;
+    toRet->childrenNo = cNo;
+    toRet->children = malloc(sizeof(dirNode*)*cNo);
+    toRet->parent = parent;
+    return toRet;
+}
+
+void destroyDir(dirNode* dir) {
+    free(dir->name);
+    free(dir->children);
+    free(dir);
+}
+
+void removeDir(dirNode* parent, dirNode* child){
+    dirNode** buff = malloc(sizeof(dirNode*)*(parent->childrenNo-1));
+    int idx = 0;
+    for(;parent->children[idx]!=child; idx++) buff[idx] = parent->children[idx];
+    for(int i=idx; i<parent->childrenNo-2; i++) buff[i] = parent->children[i+1];
+    free(parent->children);
+    parent->children = buff;
+}
+
+void appendDir(dirNode* parent, dirNode* child) {
+    child->parent = parent;
+    dirNode** buff = malloc(sizeof(dirNode*)*(parent->childrenNo+1));
+    for(int i=0; i<parent->childrenNo; i++) buff[i] = parent->children[i];
+    buff[parent->childrenNo] = child;
+    free(parent->children);
+    parent->children = buff;
+}
 

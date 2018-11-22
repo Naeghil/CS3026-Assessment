@@ -36,3 +36,7 @@ void readblock ( diskblock_t* block, int block_address ) {
     for(int i=0; i<BLOCKSIZE; i++) blk.data[i] = '\0';
     return blk;
 }
+
+void freeBlock(fatentry_t idx) {
+    diskblock_t blk = resetBlock();
+    writeblock(&blk, idx); }

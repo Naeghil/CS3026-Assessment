@@ -14,14 +14,20 @@
 //Opens a file, manages a buffer[BLOCKSIZE]
 //mode: "r" readonly; "w" read/write/append
 MyFILE * myfopen ( pathStruct , const char * ) ;
+//Creates a new dirNode for a file, with parent path.dir
+//also clears the block and adds an EOF for the data
+dirNode* newFile(char*, dirNode*);
 //closes the file
 void myfclose ();
 //returns the next byte of the open file, or EOF (EOF == -1)
-int myfgetc ();
+//if buffer is full, go to the next
+char myfgetc ();
 //Writes a byte to the file. If buffer is full, write to disk
-void myfputc ( int );
+void myfputc ( char );
+//Removes the last char and handles blocks
+void myfremc();
 //Writes the remaining contents of the open file to disk
-bool saveFile();
+void saveFile();
 //Prints all contents of a closed file
 void readFile( pathStruct );
 //Prints all contents of the currently open file
@@ -29,10 +35,9 @@ void printFile();
 //Prints the last n lines of the currently open file
 void printLine( int );
 //Appends the string to the currently open file
-void appendLine();
+void appendLine( char* );
 //eliminates the last line of the currently open file
 void deleteLine();
-
 
 ///Directory Management Functions
 //Creates a new directory as specified, recursively.
@@ -41,17 +46,20 @@ void mymkdir ( pathStruct );
 void myremove ( pathStruct );
 //Removes an existing directory and all its contents recursively, or file
 void myrmdir ( pathStruct );
+void recurRmDir(dirNode*);
 //Changes into an existing directory
 void mychdir ( pathStruct );
 //Returns an array of strings listing the contents of an existing directory
-char ** mylistdir ( pathStruct );
-char ** mylistdir ( fileSys* );
+char ** mylistpath ( pathStruct );
+char ** mylistdir ( dirNode* );
 //moves source to destination
 void myMvDir( pathStruct, pathStruct );
 //copies source to destination
 void myCpDir( pathStruct, pathStruct );
+void recurCp(dirNode*, dirNode*);
+dirNode* cpyFile(dirNode*);
 //Computes a pathStruct out of a path string and checks its validity
-pathStruct parsePath(const char*);
+pathStruct parsePath(char*);
 //returns the full path of the working directory, with ending colon
 char* workingDirPath();
 

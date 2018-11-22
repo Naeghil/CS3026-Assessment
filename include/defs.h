@@ -3,7 +3,7 @@
 
 ///this file includes basic macro definitions
 ///as well as low level typedefs
-
+#include <stdio.h>
 #include <stdlib.h>
 #include <stdbool.h>
 #include <string.h>
@@ -75,7 +75,7 @@ typedef struct dirblock {
 typedef struct dirblock {
     char        entryCount;
     direntry_t  entries[];
-}
+} dirblock_t;
 
 /// a block can be either a directory block, a FAT block or actual data
 typedef union block {
@@ -93,47 +93,24 @@ typedef struct filedescriptor {
    diskblock_t buffer  ;
 } MyFILE;
 
-///used to provide 2-level indexing for the directory hierarchy
-typedef struct dynamicDirTable {
-    int arraySize;
-    int realBlocksNo;
-    short* entryNumbers;
-} directoryTable;
-//create a new directory table
-/*
-void create(directoryTable *t) {
-    t->arraySize = 10;
-    t->entryNumbers = malloc(sizeof(short)*t->arraySize);
-    t->realBlocksNo = 1;
-    t->entryNumbers[0] = 0;
-}; */
-//insert a new block with idx number of entries
-/*
-void ins(directoryTable *t, short idx) {
-    if(t->realBlocksNo==t->arraySize) {
-        short temp[t->arraySize];
-        for(int i=0; i<t->arraySize; i++) temp[i] = t->entryNumbers[i];
-        t->arraySize = t->arraySize*2;
-        t->entryNumbers = malloc(sizeof(short)*t->arraySize);
-        for(int i=0; i<t->realBlocksNo; i++) t->entryNumbers[i] = temp[i];
-    };
-    t->entryNumbers[t->realBlocksNo] = idx;
-    t->realBlocksNo++;
-};
-//add an entry to the block blockNo
-void add(directoryTable *t, int blockNo) { if(blockNo<t->realBlocksNo) t->entryNumbers[blockNo]++; };
-//remove an entry to the block blockNo
-void rem(directoryTable *t, int blockNo) { if(blockNo<t->realBlocksNo) t->entryNumbers[blockNo]--; };
-int getVirtualIdx(directoryTable *t, short entryIdx) {
-    int idx=0;
-    while(entryIdx>t->entryNumbers[idx]) {
-        entryIdx-=t->entryNumbers[idx];
-        idx++;
-    };
-    return idx;
-}; */
+typedef struct fileSystemNode {
+    char* name; //name of the file or directory
+    time_t modTime;
+    fatentry_t firstBlock;
+    struct fileSystemNode* parent;
+    int childrenNo;
+    struct fileSystemNode** children;
+} dirNode;
 
-
+typedef struct {
+    bool isFile;
+    bool isValid;
+    bool isAbsolute;
+    //The directory the path points at
+    dirNode* dir;
+    //NULL terminating array of non-existing path "components"; determines path validity
+    char** nonExisting;
+} pathStruct;
 
 
 #endif // DEFS_H_INCLUDED

@@ -3,7 +3,7 @@
 
 #include "defs.h"
 
-bool freeBlock(fatentry_t);
+bool freeFatBlock(fatentry_t);
 
 void freeChain(fatentry_t);
 

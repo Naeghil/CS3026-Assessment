@@ -11,6 +11,7 @@ bool writedisk ( const char * );
 void readdisk ( const char * );
 void writeblock( diskblock_t* , int );
 void readblock ( diskblock_t* , int );
+void freeBlock(fatentry_t);
 
 ///Utilities:
 diskblock_t resetBlock();
