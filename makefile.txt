@@ -1,0 +1,2 @@
+shell: src/shell.c src/shellUtilities.c src/commandFunctions.c src/fileSys.c src/fat.c src/virtualDisk.c src/dirManagement.c
+	gcc -o shell src/shell.c src/shellUtilities.c src/commandFunctions.c src/fileSys.c src/fat.c src/virtualDisk.c src/dirManagement.c -I.

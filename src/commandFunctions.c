@@ -21,12 +21,10 @@ char* manual[AVAILABLECMDS] = {
     "\tand subsequently provides a description for the command and its arguments.\n"
     "\tCOMMAND:\n"
         "\t\tOne of the available commands; all the commands are described if no argument is provided",
-"quit [-f] [PATH] \n"
-    "\t Exits the shell and tries to save the virtual disk to PATH.\n"
+"quit [PATH] \n"
+    "\t Tries to save the virtual disk to PATH. If successful, it exits the shell. \n"
     "\tPATH:\n"
         "\t\tsee 'save'\n"
-    "\t-f:\n"
-        "\t\tIf this flag is provided, the command will close the shell even if the disk couldn't be saved.",
 "save [PATH]\n"
     "\tTries to save the virtual disk to PATH.\n"
     "\tPATH:\n"
@@ -72,8 +70,7 @@ char* manual[AVAILABLECMDS] = {
     "\tSOURCE:\n"
         "\t\tA valid path on the virtual disk. It can be absolute or relative.\n"
     "\tDESTINATION:\n"
-        "\t\tA valid path on the virtual disk pointing to a directory.\n"
-        "\t\tIf SOURCE points to a file or subdirectory contained in the same directory specified by DESTINATION, the command has no effect.",
+        "\t\tA valid path on the virtual disk pointing to a directory.\n",
 "open [-r|-w] PATH\n"
     "\tOpens the specified file or creates it if it doesn't already exist, effectively 'changing the current directory into it'.\n"
     "\tIf no flag is specified, the file will open in -w.\n"
@@ -95,13 +92,13 @@ char* manual[AVAILABLECMDS] = {
         "\t\tA valid path on the virtual disk pointing to a file.\n"
         "\t\tIts specification does allow to check the content of a specified file even if another file is already open.",
 "rl [NO]\n"
-    "\tPrints the last NO lines of the currently open file.\n"
+    "\tPrints the last NO lines of the currently open file, or the whole file.\n"
     "\tNO:\n"
         "\t\tAn integer.",
 "wl [STRING]\n"
-    "\tAppends a line containing STRING to the currently open file.\n"
+    "\tAppends a newline containing STRING to the currently open file.\n"
     "\tSTRING:\n"
-        "\t\tA sequence of characters enclosed in '. If it contains \\n, multiple lines will be written.",
+        "\t\tA sequence of characters enclosed in \".",
 "rml\n"
     "\tRemoves the last line of a currently open file."
 };
@@ -120,13 +117,13 @@ void execute(commandStruct cmd) {
     //quit
     else if(command==1)  {
         if(opened!=NULL) {printf(fileOpen); return; }
-        if((argc>2)||((argc==2)&&(strcmp(cmd.arguments[0],"-f")!=0))) { printf(argErr); return; }
+        if(argc>1) { printf(argErr); return; }
         char* path = "vDisk";
         const char* errMessage = "The disk couldn't be saved to file. \n";
         saveVDisk();
-        if((argc==2)||((argc==1)&&(strcmp(cmd.arguments[0], "-f")!=0))) path = cmd.arguments[argc-1];
+        if(argc=1) path = cmd.arguments[0];
         session = !writedisk(path);
-        if(session&&((argc==0)||(strcmp(cmd.arguments[0], "-f")!=0))) printf(errMessage);
+        if(session) printf(errMessage);
     }
     //save
     else if(command==2)  {
