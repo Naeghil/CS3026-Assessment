@@ -10,7 +10,7 @@ void openFile(const char*, MyFILE*);
 pathStruct getPath(dirNode*);
 dirNode* makeDirTree(direntry_t*, int);
 ///entry manipulation
-direntry_t* initDirEntry(time_t, short, signed char, signed char, char*);
+direntry_t* initDirEntry(time_t, short, char, char*);
 void insertDirEntry(diskblock_t*, direntry_t*);
 int getEntryOffset(diskblock_t*, int);
 direntry_t* getEntry(diskblock_t*, int);

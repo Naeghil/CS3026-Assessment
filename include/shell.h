@@ -3,7 +3,7 @@
 
 #include "fileSys.h"
 
-#define MAXCMD 64
+#define MAXCMD 256
 #define MAXARGS 16
 #define AVAILABLECMDS 17
 
@@ -12,7 +12,7 @@
 typedef struct {
     int argNumber;
     char* command;
-    char** arguments;
+    char* arguments[MAXARGS];
 } commandStruct;
 
 

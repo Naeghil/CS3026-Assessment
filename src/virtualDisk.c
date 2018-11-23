@@ -5,14 +5,14 @@ diskblock_t virtualDisk[MAXBLOCKS];
 // writedisk : writes virtual disk out to physical disk
 bool writedisk ( const char * filename ) {
     bool success = true;
-   FILE * dest = fopen( filename, "w" ) ;
-   if ( fwrite ( virtualDisk, sizeof(virtualDisk), 1, dest ) < 0 ) success = false;
-   //write( dest, virtualDisk, sizeof(virtualDisk) ) ;
-   fclose(dest) ;
-   return success;
+    FILE * dest = fopen(filename, "w" ) ;
+    success = fwrite(virtualDisk, sizeof(virtualDisk), 1, dest)>=0;
+    //write( dest, virtualDisk, sizeof(virtualDisk) ) ;
+    fclose(dest) ;
+    return success;
 }
 
-// readdisk: reads virtual disk from file ??
+// readdisk: reads virtual disk from file
 void readdisk ( const char * filename ) {
    FILE * dest = fopen( filename, "r" ) ;
    if ( fread ( virtualDisk, sizeof(virtualDisk), 1, dest ) < 0 )

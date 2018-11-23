@@ -1,11 +1,12 @@
 #include "../include/fileSys.h"
 
-#define pathErr "Invalid path."
+#define pathErr "Invalid path.\n"
 
 fatentry_t FAT[MAXBLOCKS];
 dirNode* directoryHierarchy;
 dirNode* workingDir;
 MyFILE* currentlyOpen;
+pathStruct root;
 
 void format () {
     diskblock_t block = resetBlock();
@@ -24,12 +25,11 @@ void format () {
     block.fat[FATBLOCKSNO+1] = ENDOFCHAIN; //for root directory
     writeblock(&block, 1);
     ///Prepare the directory block
-    block = resetBlock();   block.dir.entryCount = 0;
+    block = resetBlock();
     time_t now; time(&now);
-    direntry_t *root = initDirEntry(now, FATBLOCKSNO+1, strlen(""), 0, "");
-    insertDirEntry(&block, root);
-    free(root);
-    writeblock(&block, FATBLOCKSNO);
+    direntry_t *root = initDirEntry(now, -1, 0, "root");
+    block.dir[0] = *root;
+    writeblock(&block, FATBLOCKSNO+1);
 }
 
 //Used to initialise structures maintained at runtime
@@ -40,14 +40,19 @@ void initStructs(){
     for(int i=0; i<MAXBLOCKS; i++) FAT[i] = fatBlocks[(int) i/FATENTRYCOUNT].fat[i%FATENTRYCOUNT];
 
     ///Initialize directory hierarchy:
-    direntry_t allEntries[(int) (MAXBLOCKS*((BLOCKSIZE-1)/(sizeof(direntry_t)+1)))];
-    int entryCount = 0;
-    diskblock_t buffBlock;
+    direntry_t allEntries[MAXBLOCKS*DIRENTRYCOUNT];
+    diskblock_t buffBlock = resetBlock();
+    int idx =0;
     for(fatentry_t ptr = FATBLOCKSNO+1; ptr!=ENDOFCHAIN; ptr=FAT[ptr]) {
         readblock(&buffBlock, ptr);
-        for(int i=0; i<buffBlock.dir.entryCount; i++) allEntries[entryCount++] = *getEntry(&buffBlock, i);
+        for(int i=0; (buffBlock.dir[i].modtime!=0) && (i<DIRENTRYCOUNT); i++) allEntries[idx++] = buffBlock.dir[i];
     }
-    directoryHierarchy = makeDirTree(allEntries, entryCount);
+    directoryHierarchy = makeDirTree(allEntries, idx);
+    directoryHierarchy->parent = NULL;
+    workingDir = directoryHierarchy;
+    root.isFile = false; root.isValid = true;
+    root.nonExisting[0] = NULL;
+    root.dir = directoryHierarchy;
 }
 
 void writeFat() {
@@ -61,53 +66,53 @@ void writeFat() {
 
 void writeDirectory() {
     //Make a sequence of entries in the way they need to be stored
-    dirNode* dir[MAXPATHLENGTH];
+    dirNode* dir[MAXBLOCKS*DIRENTRYCOUNT];
     int nodes = 0;
     int idx =1;
-    direntry_t* entries[MAXPATHLENGTH];
+    direntry_t* entries[MAXBLOCKS*DIRENTRYCOUNT];
     dir[0] = directoryHierarchy;
-    while(nodes<=idx) {
+
+    while(nodes<idx) {
         for(int i=0; i<dir[nodes]->childrenNo; i++) {
             dir[idx] = dir[nodes]->children[i];
             idx++;
         }
         nodes++;
     }
-    for(int i=0; i<nodes; i++) entries[i] = initDirEntry(dir[i]->modTime, dir[i]->firstBlock, sizeof(dir[i]->name), dir[i]->childrenNo, dir[i]->name);
+
+    for(int i=0; i<nodes; i++) entries[i] = initDirEntry(dir[i]->modTime, dir[i]->firstBlock, dir[i]->childrenNo, dir[i]->name);
 
     //Overwrite the current directories
     idx = 0;
     diskblock_t buff = resetBlock();
-    fatentry_t nextDirBlock;
-    size_t buffSize =0;
+    fatentry_t nextDirBlock = nextDirBlock = FATBLOCKSNO+1;
     for(int i=0; i<nodes; i++) {
-        idx++;
-        ///TODO: check this part
-        buffSize+=sizeof(*entries[i])+entries[i]->nameLength;
-        if(buffSize>BLOCKSIZE-(sizeof(short)+2)) {
-            buff.dir.entryCount = idx;
-            for(int j=idx; j<=0; j--) insertDirEntry(&buff, entries[i-j]);
-            idx=0; i--;
-            if(i+1-buff.dir.entryCount == 0) nextDirBlock = FATBLOCKSNO+1;
-            else if (FAT[nextDirBlock]==ENDOFCHAIN) nextDirBlock = getNewBlock(nextDirBlock);
-            else nextDirBlock = FAT[nextDirBlock];
+        buff.dir[i%DIRENTRYCOUNT] = *entries[i];
+        if(i%DIRENTRYCOUNT==DIRENTRYCOUNT-1) {
             writeblock(&buff, nextDirBlock);
+            buff = resetBlock();
+            if(FAT[nextDirBlock]==ENDOFCHAIN) nextDirBlock = getNewBlock(nextDirBlock);
+            else nextDirBlock = FAT[nextDirBlock];
         }
     }
-    if(nextDirBlock!=ENDOFCHAIN) freeChain(nextDirBlock);
+    if(FAT[nextDirBlock]!=ENDOFCHAIN) freeChain(FAT[nextDirBlock]);
+    FAT[nextDirBlock] = ENDOFCHAIN;
+    for(int i=0; i<nodes; i++) free(entries[i]);
 }
 
 char* workingDirPath() {
     char path[MAXPATHLENGTH];
+    memset(path, '\0', MAXPATHLENGTH);
     dirNode* dir[MAXPATHLENGTH];
     dir[0] = workingDir;
     int pLength = 0;
-    while(dir[pLength]->parent!=NULL) {
+    while(strcmp(dir[pLength]->name, directoryHierarchy->name)!=0) {
         pLength++;
         dir[pLength] = dir[pLength-1]->parent;
     }
-    for(int i=pLength; i>=0; i++) {
-        strcat(path, "$\\");
+    strcat(path, "$");
+    for(int i=pLength-1; i>=0; i--) {
+        strcat(path, "\\");
         strcat(path, dir[i]->name);
     }
     return strcat(path, ">");
@@ -122,61 +127,51 @@ void saveVDisk() {
 pathStruct parsePath(char* str) {
     pathStruct toRet;
     toRet.isValid = true;
+    toRet.isFile = false;
+    toRet.dir = NULL;
     char* token = NULL;
     dirNode* track;
-    int count = 1;
-    int nexIdx= 0;
-    //count the path components
-    token = strtok(str, "\\");
-    while(token!=NULL) { token = strtok(NULL, "\\"); count++; }
-    token = strtok(str, "\\");
-    if(count>MAXPATHLENGTH/2) { toRet.isValid = false; return toRet; }
-    toRet.nonExisting   = malloc(sizeof(char*)*(count+1));
 
-    //Check the first token to start tracking the path
-    toRet.isAbsolute = false;
-    if(strcmp(token, "$")==0) {
-        track = directoryHierarchy;
-        toRet.isAbsolute = true;
-    } else if((strcmp(token, "..")==0) && (workingDir!=directoryHierarchy)) track = workingDir->parent;
-    else if(strcmp(token, ".")==0) track = workingDir;
-    else {
-        for(int i=0; i<workingDir->childrenNo; i++) if(strcmp(token, workingDir->children[i]->name)==0) track = workingDir->children[i];
-    }
-    if(track!=NULL && track->firstBlock != -1) toRet.isFile = true;
+    if(str[0]=='/') track = directoryHierarchy;
+    else track = workingDir;
     //Existing part
-    while(track!=NULL) {
-        //Generate and process new token
-        token = strtok(NULL, "\\");
+    for(token = strtok(str, "/"); track!=NULL;) {
         dirNode* newTrack = NULL;
-        //Only a itself, a child or a parent are recognised tokens;
-        //why someone would put a ".." or a "." in the middle of a path is beyond me, but even so
-        if(strcmp(token, "..")==0) newTrack= track->parent;
-        else if(strcmp(token, ".")==0) continue;
-        else for(int i=0; i<track->childrenNo; i++) if(strcmp(token, track->children[i]->name)==0) newTrack = track->children[i];
-        if(newTrack == NULL) toRet.dir = newTrack;
-        track = newTrack;
-        if((track!=NULL && track->firstBlock != -1) || (strcmp(token,"$")==0)) {
-            if((toRet.isFile)||(strcmp(token, "$")==0)){
+        if(token==NULL) track ==NULL;
+        else if(strcmp(token, ".")==0) {
+                token = strtok(NULL,"/");
+                continue;
+        } else if(strcmp(token, "..")==0) {
+            if(track!=directoryHierarchy) newTrack = track->parent;
+            else {
+                toRet.isValid = false;
+                return toRet;
+            }
+        } else for(int i=0; i<track->childrenNo; i++)
+            if(strcmp(token, track->children[i]->name)==0) newTrack = track->children[i];
+        if((newTrack!=NULL)&&(newTrack->firstBlock!=-1)) {
+            if(toRet.isFile){
                 toRet.isValid = false;
                 return toRet;
             } else toRet.isFile = true;
         }
+        if(newTrack == NULL) toRet.dir = track;
+        track = newTrack;
+        if(track!=NULL) token = strtok(NULL, "/");
     }
     //Non-existing part
-    while(token!=NULL) {
+    int nexIdx= 0;
+    while((token!=NULL)&&(nexIdx<16)) {
         //Record the last token
         toRet.nonExisting[nexIdx] = malloc(sizeof(token));
         strcpy(toRet.nonExisting[nexIdx], token);
         nexIdx++;
         //Generate and process new token
-        token = strtok(NULL, "\\");
+        token = strtok(NULL, "/");
     }
+    if(nexIdx==16) { printf("Will operate on the first 15 non-existing elements"); nexIdx--; }
     toRet.nonExisting[nexIdx] = NULL;
-
     return toRet;
-    ///TODO: pathStructs need to be destructed properly, they use malloc
-    ///since many functions use this, maybe make a function that does it
 }
 
 void mychdir(pathStruct path) {
@@ -184,41 +179,52 @@ void mychdir(pathStruct path) {
     else workingDir = path.dir;
 }
 
-char** mylistdir(dirNode* node) {
-    char** ls = malloc(node->childrenNo+1);
-    for(int  i=0; i<node->childrenNo; i++) {
-        ls[i] = malloc(sizeof(node->children[i]->name));
-        strcpy(ls[i], node->children[i]->name);
+char* mylistdir(dirNode* node) {
+    int count=0;
+    for(int i = 0; i<node->childrenNo; i++) count+=sizeof(node->children[i]->name);
+    char* ls = malloc(count+1);
+    memset(ls, '\0', count+1);
+    if(node->childrenNo>0) strcat(ls, node->children[0]->name);
+    for(int  i=1; i<node->childrenNo; i++) {
+        strcat(ls, "\t");
+        strcat(ls, node->children[i]->name);
     }
-    ls[node->childrenNo] = NULL;
     return ls;
-    ///TODO: the return value must be freed
 }
-char** mylistpath(pathStruct path) {
+char* mylistpath(pathStruct path) {
     if(!path.isValid || path.isFile || (path.nonExisting[0]!=NULL)) { printf(pathErr); return NULL; }
     else return mylistdir(path.dir);
 }
 
 void mymkdir(pathStruct path) {
-    ///TODO: needs to check if the names of directories are valid actually
     if(!path.isValid || path.isFile) printf(pathErr);
-    dirNode* where = path.dir;
-    time(&where->modTime);
-    if(path.nonExisting[0]!=NULL) {
-        dirNode** buff = where->children;
-        where->childrenNo++;
-        where->children = malloc(sizeof(dirNode*)*where->childrenNo);
-        for(int i=0; i<where->childrenNo-1; i++) where->children[i] = buff[i];
-        where->children[where->childrenNo-1] = createNode(path.nonExisting[0], -1, 1, where);
-        where = where->children[where->childrenNo-1];
-        free(buff);
+    else {
+        dirNode* where = path.dir;
+        if(path.nonExisting[0]==NULL) {
+                printf("A directory by this name already exists.\n");
+                return;
+        }
+        if(path.nonExisting[0]!=NULL) {
+            time(&where->modTime);
+            if((strchr(path.nonExisting[0], '\'')!=NULL)||(strchr(path.nonExisting[0], ' ')!=NULL) || (strchr(path.nonExisting[0], '\"')!=NULL)) {
+                printf("Invalid name. \n");
+                return;
+            }
+            appendDir(where, createNode(path.nonExisting[0], -1, 1, where));
+            where = where->children[where->childrenNo-1];
+        }
+        for(int i = 1; path.nonExisting[i]!=NULL; i++) {
+            if((strchr(path.nonExisting[i], '\'')!=NULL)||(strchr(path.nonExisting[0], ' ')!=NULL)) {
+                printf("Invalid name. \n");
+                return;
+            }
+            where->children[0] = createNode(path.nonExisting[i], -1, 1, where);
+            where = where->children[0];
+        }
+        //leaves a size 1 array; who cares
+        where->childrenNo = 0;
+        for(int i=0; path.nonExisting[i]!=NULL; i++) free(path.nonExisting[i]);
     }
-    for(int i = 1; path.nonExisting[i]!=NULL; i++) {
-        where->children[0] = createNode(path.nonExisting[i], -1, 1, where);
-        where = where->children[0];
-    }
-    //leaves a size 1 array; who cares
-    where->childrenNo = 0;
 }
 
 void myremove (pathStruct path) {
@@ -228,6 +234,7 @@ void myremove (pathStruct path) {
         freeChain(path.dir->firstBlock);
         destroyDir(path.dir);
     }
+    for(int i=0;  path.nonExisting[i]!=NULL; i++) free(path.nonExisting[i]);
 }
 
 void myrmdir (pathStruct path) {
@@ -244,6 +251,7 @@ void myrmdir (pathStruct path) {
         recurRmDir(path.dir);
         destroyDir(path.dir);
     }
+    for(int i=0; path.nonExisting[i]!=NULL; i++) free(path.nonExisting[i]);
 }
 void recurRmDir( dirNode* dir){
     for(int i=0; i<dir->childrenNo; i++) {
@@ -256,61 +264,68 @@ void recurRmDir( dirNode* dir){
 }
 
 void myMvDir(pathStruct source, pathStruct dest) {
+    bool changed = false;
     if(!source.isValid || !dest.isValid || dest.isFile || source.nonExisting[0]!=NULL) printf(pathErr);
-    else {
+    else if ((source.dir->parent == dest.dir) && (dest.nonExisting[0]!=NULL) && (dest.nonExisting[1]==NULL))  {
+        free(source.dir->name);
+        source.dir->name = dest.nonExisting[0];
+        dest.nonExisting[0] = NULL;
+    } else {
         //Prepare destination
         dirNode* destPtr = dest.dir;
         if(dest.nonExisting[0]!=NULL) {
             mymkdir(dest);
-            bool validity = false;
-            for(int i=0; i<destPtr->childrenNo; i++) if(strcmp(destPtr->children[i]->name, dest.nonExisting[0])==0) validity = true;
-            if(!validity) return;
-            int idx =0;
-            while(dest.nonExisting[idx]!=NULL) {
-                bool changed = false;
-                for(int i=0; (i<destPtr->childrenNo) && !changed; i++) if(strcmp(destPtr->children[i]->name, dest.nonExisting[idx])==0) { destPtr = destPtr->children[i]; changed = true; }
-            }
+            changed = true;
+            while(destPtr->childrenNo!=0) destPtr = destPtr->children[destPtr->childrenNo-1];
         }
         //Prepare source
         dirNode* sourcePtr = source.dir;
         //Make the move
-        appendDir(destPtr, sourcePtr);
         removeDir(sourcePtr->parent, sourcePtr);
+        appendDir(destPtr, sourcePtr);
     }
+    if(!changed) for(int i=0; dest.nonExisting[i]!=NULL; i++) free(dest.nonExisting[i]);
 }
 
 void myCpDir(pathStruct source, pathStruct dest) {
+    bool changed = false;
     if(!source.isValid || !dest.isValid || dest.isFile || source.nonExisting[0]!=NULL) printf(pathErr);
     else {
-        //Prepare dest
+        //Prepare ptrs
         dirNode* destPtr = dest.dir;
         if(dest.nonExisting[0]!=NULL) {
             mymkdir(dest);
-            bool validity = false;
-            for(int i=0; i<destPtr->childrenNo; i++) if(strcmp(destPtr->children[i]->name, dest.nonExisting[0])==0) validity = true;
-            if(!validity) return;
-            int idx =0;
-            while(dest.nonExisting[idx]!=NULL) {
-                bool changed = false;
-                for(int i=0; (i<destPtr->childrenNo) && !changed; i++) if(strcmp(destPtr->children[i]->name, dest.nonExisting[idx])==0) {destPtr = destPtr->children[i]; changed = true; }
-            }
+            changed = true;
+            while(destPtr->childrenNo!=0) destPtr = destPtr->children[destPtr->childrenNo-1];
         }
+        dirNode* srcPtr = source.dir;
         //Make the copy
-        for(int i=0; i<source.dir->childrenNo; i++) {
-            if(source.dir->firstBlock!=-1) {
-                    appendDir(destPtr, createNode(source.dir->name, source.dir->firstBlock, source.dir->childrenNo, NULL));
-                    recurCp(source.dir->children[i], destPtr->children[i]);
-            } else appendDir(destPtr, cpyFile(source.dir));
+        char* name;
+        if(srcPtr->parent == destPtr) {
+            name = malloc(sizeof(srcPtr->name)+8);
+            strcpy(name, "Copy of ");
+            strcat(name, srcPtr->name);
+        }
+        else name = srcPtr->name;
+        appendDir(destPtr, createNode(name, srcPtr->firstBlock, 0, destPtr));
+        destPtr = destPtr->children[destPtr->childrenNo-1];
+
+        for(int i=0; i<srcPtr->childrenNo; i++) {
+            dirNode* ptr = srcPtr->children[i];
+            if(ptr->firstBlock!=-1) {
+                appendDir(destPtr, createNode(ptr->name, ptr->firstBlock, 0, destPtr));
+                recurCp(ptr, destPtr->children[i]);
+            } else appendDir(destPtr, cpyFile(ptr));
         }
     }
-
-
+    if(!changed) for(int i=0; dest.nonExisting[i]!=NULL; i++) free(dest.nonExisting[i]);
 }
 void recurCp(dirNode* source, dirNode* dest) {
     for(int i=0; i<source->childrenNo; i++) {
+        dirNode* ptr = source->children[i];
         if(source->firstBlock!=-1) {
-            appendDir(dest, createNode(source->name, source->firstBlock, source->childrenNo, NULL));
-            recurCp(source->children[i], dest->children[i]);
+            appendDir(dest, createNode(ptr->name, ptr->firstBlock, 0, dest));
+            recurCp(ptr, dest->children[i]);
         } else appendDir(dest, cpyFile(source));
     }
 }
@@ -318,23 +333,32 @@ void recurCp(dirNode* source, dirNode* dest) {
 MyFILE* myfopen (pathStruct path, const char * mode) {
     MyFILE * toOpen = NULL;
     //Identify the file
-    dirNode* file;
+    dirNode* file = path.dir;
     if(!path.isValid) { printf(pathErr); return toOpen; }
     if(!path.isFile) {
-        if((path.nonExisting[0]!=NULL) && (path.nonExisting[1]==NULL)) {
-           dirNode* file = newFile(path.nonExisting[0], path.dir);
-           if(file == NULL) return toOpen;
-        } else { printf(pathErr); return toOpen; }
-    } else file = path.dir;
+        char* filename;
+        int count;
+        for(count =0; path.nonExisting[count]!=NULL; count++ ) filename = path.nonExisting[count];
+        path.nonExisting[count-1] = NULL;
+        if(count>1) {
+            mymkdir(path);
+            while(file->childrenNo!=0) file = file->children[file->childrenNo-1];
+        }
+        file = newFile(filename, file);
+        if(file == NULL) return toOpen;
+        else appendDir(file->parent, file);
+    }
     //Create the descriptor:
     toOpen = malloc(sizeof(MyFILE));
     memset(toOpen->mode, '\0', 2);
     strcpy(toOpen->mode, mode);
     toOpen->firstBlock = file->firstBlock;
     toOpen->blockNo = lastBlockOf(file->firstBlock);
-    readblock(&(toOpen->buffer), toOpen->blockNo);
-    int pos =0;
-    while(toOpen->buffer.data[pos]!=EOF) pos++;
+    diskblock_t buffBuff = resetBlock();
+    readblock(&buffBuff, (toOpen->blockNo));
+    toOpen->buffer = buffBuff;
+    int pos = 0;
+    while((char) toOpen->buffer.data[pos]!=EOF){ printf("%d", toOpen->buffer.data[pos]); pos++;}
     toOpen->pos = pos;
     workingDir = file;
     return toOpen;
@@ -362,27 +386,29 @@ void readFile( pathStruct path ) {
             printf("%s", buff);
         }
     }
+    for(int i=0; path.nonExisting[i]!=NULL; i++) free(path.nonExisting[i]);
 }
 
 void printLine( int n ) {
     saveFile();
     for(int i = 0; i<n; i++) {
         //Finding the last newline
-        currentlyOpen->pos--;
-        while(currentlyOpen->buffer.data[currentlyOpen->pos]!='\n') {
-            if(currentlyOpen->pos!=0) currentlyOpen->pos--;
+        int pos = currentlyOpen->pos;
+        while((currentlyOpen->buffer.data[pos]!='\n') || ((currentlyOpen->blockNo==currentlyOpen->firstBlock)&&(pos==0))){
+            if(pos!=0) pos--;
             else {
                 fatentry_t prev = currentlyOpen->firstBlock;
                 while(FAT[prev]!= currentlyOpen->blockNo) prev = FAT[prev];
-                readblock(&currentlyOpen->buffer, prev);
+                readblock(&(currentlyOpen->buffer), prev);
                 currentlyOpen->blockNo = prev;
-                currentlyOpen->pos = BLOCKSIZE-1;
+                pos = BLOCKSIZE-1;
             }
         }
+        currentlyOpen->pos = pos;
     }
     char buff[BLOCKSIZE];
-    for(int j=0; j<BLOCKSIZE; j++) buff[j] = '\0';
-    for(int i=0; buff[i]!=EOF; i++){
+    memset(buff, '\0', BLOCKSIZE);
+    for(int i=0; (char) buff[i]!=EOF; i++){
         if(i==BLOCKSIZE) {
             printf("%s", buff);
             i=0;
@@ -398,15 +424,17 @@ void printFile() {
     diskblock_t blockB;
     for(fatentry_t bNo = currentlyOpen->firstBlock; bNo!=ENDOFCHAIN; bNo = FAT[bNo]) {
         readblock(&blockB, bNo);
-        for(int i=0; i<BLOCKSIZE; i++) buff[i] = (char) blockB.data[i];
+        for(int i=0; (i<BLOCKSIZE) && ((char) blockB.data[i]!=EOF); i++) buff[i] = (char) blockB.data[i];
         printf("%s", buff);
     }
 }
 
 void appendLine( char* line ){
     if(strcmp(currentlyOpen->mode, "w")==0) {
-        for(int i=0; line[i]!='\0'; i++) myfputc(line[i]);
+        for(int i=0; line[i]!='\0'; i++) if(line[i]!='\"') myfputc(line[i]);
+        myfputc('\n');
         currentlyOpen->buffer.data[currentlyOpen->pos] = EOF;
+        for(int i=0; i<BLOCKSIZE; i++) printf("%d", currentlyOpen->buffer.data[i]);
     } else printf("Permission denied.");
 }
 
@@ -421,8 +449,8 @@ void deleteLine(){
 
 char myfgetc () {
     char toRet = currentlyOpen->buffer.data[currentlyOpen->pos];
-    if(toRet!=EOF) currentlyOpen->pos++;
-    if(currentlyOpen->pos==BLOCKSIZE) {
+    currentlyOpen->pos++;
+    if((currentlyOpen->pos==BLOCKSIZE)&&(currentlyOpen->buffer.data[currentlyOpen->pos]!=EOF)) {
         currentlyOpen->blockNo = FAT[currentlyOpen->blockNo];
         readblock(&currentlyOpen->buffer, currentlyOpen->blockNo);
         currentlyOpen->pos = 0;
@@ -471,10 +499,6 @@ bool isDiskFile(FILE* source){
     } else return false;
 }
 
-void loadDiskFromFile(FILE* source){
-    ///TODO: write the file to the virtualDisk
-}
-
 dirNode* newFile(char* name, dirNode* parent){
     dirNode* file = NULL;
     fatentry_t ptr = getNewBlock(-1);
@@ -483,7 +507,8 @@ dirNode* newFile(char* name, dirNode* parent){
         blk.data[0] = EOF;
         writeblock(&blk, ptr);
         file = createNode(name, ptr, -1, parent);
-    } return file;
+    }
+    return file;
 }
 
 dirNode* cpyFile(dirNode* file) {

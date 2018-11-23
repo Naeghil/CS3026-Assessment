@@ -20,8 +20,8 @@
 #define BLOCKSIZE     1024
 #define FATENTRYCOUNT (BLOCKSIZE / sizeof(fatentry_t))
 #define FATBLOCKSNO  (MAXBLOCKS / FATENTRYCOUNT )
-#define DIRENTRYCOUNT ((BLOCKSIZE - (1*sizeof(int)) ) / sizeof(direntry_t))
-#define MAXNAME       128
+#define DIRENTRYCOUNT 8
+#define MAXNAME       121
 #define MAXPATHLENGTH 1024
 
 #define UNUSED        -1
@@ -41,41 +41,15 @@ typedef fatentry_t fatblock_t [ FATENTRYCOUNT ] ;
 typedef Byte datablock_t [ BLOCKSIZE ] ;
 
 /// create a type direntry_t
-/*
-typedef struct direntry {
-   Byte        isdir ; //does the entry represent a directory or a file?
-   Byte        unused ; //is the entry used?
-   time_t      modtime ; //last modified
-   int         filelength ; // This is wasted if the entry represents a subdirectory
-   fatentry_t  firstblock ; // the first block of the file, or the block of the sub-dirblock
-   char   name [MAXNAME] ; // the name of the entry; could actually be used instead of "unused"
-} direntry_t ; //max subdir/files is 7 with 128char names .-. */
-//man this'll be super hard to maintain fk
 typedef struct dirEntry {
-    time_t          modtime; //time last modified
-    fatentry_t      firstblock; // first block of a file; dirblock of the entry for subdirectories?
-    signed char     nameLength; //supports names up to 127 characters, extension included; if -1, the entry is unused
-    signed char     childrenNo; //supports a maximum of 127 children; -1 if it's a file
-    char            name[]; // name of the entry
-} direntry_t;
+    time_t      modtime; //time 0 if unused
+    fatentry_t  firstblock; // first block of a file; dirblock of the entry for subdirectories?
+    char        childrenNo; //supports a maximum of 127 children; -1 if it's a file
+    char        name[MAXNAME]; // name of the entry
+} direntry_t; //size of a single entry is 128
 
 ///a directory block is an array of directory entries
-/*
-typedef struct dirblock {
-   int isdir ;
-   direntry_t entrylist [ DIRENTRYCOUNT ] ; //a directory can only have DIRENTRYCOUNT between subdirs and files?
-} dirblock_t ; */
-/* With the known storage, this is not needed
-typedef struct dirblock {
-    short       nextId; // the id of the first entry
-    char        entryCount;
-    char        isFull; // are all the entries used? this will be needed to "compact" the filesys once in a while
-    direntry_t  entries[];
-} dirblock_t; */
-typedef struct dirblock {
-    char        entryCount;
-    direntry_t  entries[];
-} dirblock_t;
+typedef direntry_t dirblock_t [DIRENTRYCOUNT];
 
 /// a block can be either a directory block, a FAT block or actual data
 typedef union block {
@@ -105,11 +79,10 @@ typedef struct fileSystemNode {
 typedef struct {
     bool isFile;
     bool isValid;
-    bool isAbsolute;
     //The directory the path points at
     dirNode* dir;
     //NULL terminating array of non-existing path "components"; determines path validity
-    char** nonExisting;
+    char* nonExisting[16];
 } pathStruct;
 
 

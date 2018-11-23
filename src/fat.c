@@ -28,13 +28,12 @@ fatentry_t lastBlockOf(fatentry_t start) {
 
 fatentry_t getNewBlock(fatentry_t from) {
     fatentry_t toRet = (from>FATBLOCKSNO) ? from+1 : FATBLOCKSNO+1;
-    while((toRet<MAXBLOCKS)&&(FAT[toRet]=!UNUSED)) toRet++;
+    while((toRet<MAXBLOCKS)&&(FAT[toRet]!=UNUSED)) toRet++;
     if(FAT[toRet]!=UNUSED) {
             toRet = FATBLOCKSNO+1;
             while((toRet<from-1)&&(FAT[toRet]!=UNUSED)) toRet++;
     }
-    if(FAT[toRet]!= UNUSED) { printf("Memory full."); return -2; }
-
+    if(FAT[toRet]!= UNUSED) { printf("Memory full.\n"); return -2; }
     if(FAT[from]!=ENDOFCHAIN) FAT[from] = toRet;
     FAT[toRet] = ENDOFCHAIN;
     return toRet;

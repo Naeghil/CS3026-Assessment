@@ -49,9 +49,10 @@ void myrmdir ( pathStruct );
 void recurRmDir(dirNode*);
 //Changes into an existing directory
 void mychdir ( pathStruct );
-//Returns an array of strings listing the contents of an existing directory
-char ** mylistpath ( pathStruct );
-char ** mylistdir ( dirNode* );
+//Returns a string of \t separated contents of a directory
+//for further use, it can be easily separated with strtok(content, "\t");
+char * mylistpath ( pathStruct );
+char * mylistdir ( dirNode* );
 //moves source to destination
 void myMvDir( pathStruct, pathStruct );
 //copies source to destination
@@ -71,8 +72,6 @@ void writeFat();
 void writeDirectory();
 //Writes FAT and directory to disk; this shouldn't take care of eventually open files;
 void saveVDisk();
-bool isDiskFile(FILE *);
-void loadDiskFromFile(FILE*);
 void initStructs();
 
 

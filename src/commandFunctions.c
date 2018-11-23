@@ -2,16 +2,16 @@
 
 ///Extern declarations:
 bool session;
-pathStruct root;
+extern pathStruct root;
 dirNode* workingDir;
 MyFILE* currentlyOpen;
 
 ///Error Messages:
-const char* argErr = "Invalid arguments.";
-const char* flagErr = "%s is not a recognised flag.";
-const char* noOpenFile = "No file is currently open.";
-const char* fileOpen    = "A file is currently open.";
-const char* notSaved = "The file could not be saved.";
+const char* argErr      = "Invalid arguments.\n";
+const char* flagErr     = "%s is not a recognised flag.\n";
+const char* noOpenFile  = "No file is currently open.\n";
+const char* fileOpen    = "A file is currently open. Type 'close' to close it.\n";
+const char* notSaved    = "The file could not be saved.\n";
 
 ///The manual entries:
 char* manual[AVAILABLECMDS] = {
@@ -96,7 +96,6 @@ char* manual[AVAILABLECMDS] = {
     "\tPATH:\n"
         "\t\tA valid path on the virtual disk pointing to a file.\n"
         "\t\tIts specification does allow to check the content of a specified file even if another file is already open.",
-///TODO: it might be useful to check the last n lines of a non open file, but very low priority
 "rl [NO]\n"
     "\tPrints the last NO lines of the currently open file.\n"
     "\tNO:\n"
@@ -109,23 +108,23 @@ char* manual[AVAILABLECMDS] = {
     "\tRemoves the last line of a currently open file."
 };
 
-
 ///Command Functions:
 void printManual(int argc, char** argv) {
     if(argc>1) printf(argErr);
     else if(argc==1) {
             int idx=getCmdIdx(argv[0]);
-            if(idx!=-1) printf("%s", manual[idx]);
+            if(idx!=-1) printf("%s \n\n", manual[idx]);
     } else for(int i=0; i<AVAILABLECMDS; i++) printf("%s \n\n", manual[i]);
 };
     ///Session commands
 //exits the shell but tries and save the disk to file; -f doesn't save the disk
 void quit(int argc, char** argv){
+    if(currentlyOpen!=NULL) {printf(fileOpen); return; }
     if((argc>2)||((argc==2)&&(strcmp(argv[0],"-f")!=0))) { printf(argErr); return; }
     char* path = "vDisk";
     const char* errMessage = "The disk couldn't be saved to file. \n";
     saveVDisk();
-    if((argc==2)||(strcmp(argv[0], "-f")!=0)) path = argv[argc-1];
+    if((argc==2)||((argc==1)&&(strcmp(argv[0], "-f")!=0))) path = argv[argc-1];
     session = !writedisk(path);
     if(session&&((argc==0)||(strcmp(argv[0], "-f")!=0))) printf(errMessage);
 };
@@ -139,41 +138,42 @@ void save(int argc, char** argv){
 };
 //loads a disk from file
 void load(int argc, char** argv){
+    if(currentlyOpen!=NULL) {printf(fileOpen); return; }
     if((argc<1)||(argc>2)) printf(argErr);
     else {
         char* newArgv[] = {argv[argc-1]};
         save(argc-1, newArgv);
-        FILE * source = fopen(argv[0], "rb");
-        if(source) {
-            if(isDiskFile(source)) loadDiskFromFile(source);
-            else printf("The file is not of the right dimension.");
-            fclose(source);
-        } else printf("The file cannot be found.");
+        readdisk(argv[0]);
+        initStructs();
     }
 };
     ///Directory commands
 //changes the working directory to the specified directory; to root if no argument provided
 void cd(int argc, char** argv){
+    if(currentlyOpen!=NULL) {printf(fileOpen); return; }
     if(argc>1) printf(argErr);
     else if(argc==1) mychdir(parsePath(argv[0]));
     else mychdir(root);
 };
 //lists the contents of the directory specified; the current if no arguments provided
 void ls(int argc, char** argv){
-    char** contents;
+    if(currentlyOpen!=NULL) {printf(fileOpen); return; }
+    char* contents;
     if(argc>1) printf(argErr);
     else if(argc==1) contents = mylistpath(parsePath(argv[0]));
     else contents = mylistdir(workingDir);
-    for(int i=0; contents[i]!=NULL; i++) { printf("%s  ", contents[i]); free(contents[i]); }
-    free(contents[sizeof(contents)-1]);
+    printf("%s\n", contents);
+    free(contents);
 };
 //creates a new directory (together with specified subdirectories); can accept absolute path
 void mkDir(int argc, char** argv){
+    if(currentlyOpen!=NULL) {printf(fileOpen); return; }
     if(argc!=1) printf(argErr);
     else mymkdir(parsePath(argv[0]));
 };
 //removes a file or directory (-f removes all subdirectories too)
 void rm(int argc, char** argv){
+    if(currentlyOpen!=NULL) {printf(fileOpen); return; }
     if((argc==0)||(argc>2)) printf(argErr);
     else {
         pathStruct path;
@@ -181,7 +181,7 @@ void rm(int argc, char** argv){
                 path = parsePath(argv[0]);
                 if(path.isFile) myremove(path);
                 else if(path.dir->childrenNo==0) myrmdir(path);
-                else printf("The directory is not empty!");
+                else printf("The directory is not empty!\n");
         } else if(strcmp(argv[0], "-f")==0) {
                 path = parsePath(argv[1]);
                 if(path.isFile) myremove(path);
@@ -191,17 +191,20 @@ void rm(int argc, char** argv){
 };
 //moves a file/directory to a specified directory; also used to rename stuff
 void mv(int argc, char** argv){
+    if(currentlyOpen!=NULL) {printf(fileOpen); return; }
     if(argc!=2) printf(argErr);
     else myMvDir(parsePath(argv[0]), parsePath(argv[1]));
 };
 //copies a file/directory to a specified directory
 void cp(int argc, char** argv){
+    if(currentlyOpen!=NULL) {printf(fileOpen); return; }
     if(argc!=2) printf(argErr);
     else myCpDir(parsePath(argv[0]), parsePath(argv[1]));
 };
     ///File editing commands
 //opens an existing file or creates a new one if it doesn't exist
 void myOpen(int argc, char** argv){
+    if(currentlyOpen!=NULL) {printf(fileOpen); return; }
     if((argc==0)||(argc>2)) printf(argErr);
     else {
         if((argc==1)||(strcmp(argv[0], "-w")==0)) currentlyOpen = myfopen(parsePath(argv[argc-1]), "w");
@@ -240,8 +243,13 @@ void readl(int argc, char** argv){
     if(argc>1) printf(argErr);
     else if(currentlyOpen == NULL) printf(noOpenFile);
     else if(argc==0) printLine(0);
-    ///TODO:check if the character is a number, does atoi do that?
-    else printLine(atoi(argv[0]));
+    else {
+        printLine(atoi(argv[0]));
+        for(int i=0; i<(strlen(argv[0])+1); i++) if((argv[0][i]<'1')||(argv[0][i]>'9')) {
+            printf("The argument is not a number.");
+            return;
+        }
+    }
 };
 // appends a line to an open file
 void writel(int argc, char** argv){
