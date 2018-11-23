@@ -2,15 +2,15 @@
 
 extern dirNode* directoryHierarchy;
 extern dirNode* workingDir;
-extern MyFILE* currentlyOpen;
+extern MyFILE* opened;
 
-direntry_t* initDirEntry(time_t mTime, short fBlock, char cNo, char* name) {
-    direntry_t *newEntry = malloc(sizeof(direntry_t));
-    newEntry->childrenNo = cNo;
-    newEntry->firstblock = fBlock;
-    newEntry->modtime = mTime;
-    memset(newEntry->name, '\0', MAXNAME);
-    strcpy(newEntry->name, name);
+direntry_t initDirEntry(time_t mTime, short fBlock, char cNo, char* name) {
+    direntry_t newEntry;
+    newEntry.childrenNo = cNo;
+    newEntry.fBlock = fBlock;
+    newEntry.modtime = mTime;
+    memset(newEntry.name, '\0', MAXNAME);
+    strcpy(newEntry.name, name);
     return newEntry;
 }
 
@@ -33,10 +33,10 @@ dirNode* makeDirTree(direntry_t all[], int cardinality) {
 
 dirNode* makeNode(direntry_t entry) {
     dirNode *toRet = malloc(sizeof(dirNode));
-    toRet->name = malloc(sizeof(entry.name));
-    strcpy(toRet->name, entry.name);
+    memset(toRet->name, '\0', MAXNAME);
+    strcat(toRet->name, entry.name);
     toRet->modTime = entry.modtime;
-    toRet->firstBlock = entry.firstblock;
+    toRet->fBlock = entry.fBlock;
     toRet->childrenNo = entry.childrenNo;
     toRet->children = malloc(sizeof(dirNode*)*entry.childrenNo);
     for(int i=0; i<toRet->childrenNo; i++) toRet->children[i] = NULL;
@@ -46,20 +46,14 @@ dirNode* makeNode(direntry_t entry) {
 
 dirNode* createNode(char* name, fatentry_t fBlock, int cNo, dirNode* parent) {
     dirNode* toRet = malloc(sizeof(dirNode));
-    toRet->name = malloc(sizeof(name));
-    strcpy(toRet->name, name);
+    memset(toRet->name, '\0', strlen(name));
+    strcat(toRet->name, name);
     time(&toRet->modTime);
-    toRet->firstBlock = fBlock;
+    toRet->fBlock = fBlock;
     toRet->childrenNo = cNo;
     toRet->children = malloc(sizeof(dirNode*)*cNo);
     toRet->parent = parent;
     return toRet;
-}
-
-void destroyDir(dirNode* dir) {
-    free(dir->name);
-    free(dir->children);
-    free(dir);
 }
 
 void removeDir(dirNode* parent, dirNode* child){
@@ -73,6 +67,7 @@ void removeDir(dirNode* parent, dirNode* child){
 }
 
 void appendDir(dirNode* parent, dirNode* child) {
+    if(child == NULL ) return;
     child->parent = parent;
     dirNode** buff = malloc(sizeof(dirNode*)*(parent->childrenNo+1));
     for(int i=0; i<parent->childrenNo; i++) buff[i] = parent->children[i];

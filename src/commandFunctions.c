@@ -4,14 +4,14 @@
 bool session;
 extern pathStruct root;
 dirNode* workingDir;
-MyFILE* currentlyOpen;
+MyFILE* opened;
 
 ///Error Messages:
-const char* argErr      = "Invalid arguments.\n";
-const char* flagErr     = "%s is not a recognised flag.\n";
-const char* noOpenFile  = "No file is currently open.\n";
-const char* fileOpen    = "A file is currently open. Type 'close' to close it.\n";
-const char* notSaved    = "The file could not be saved.\n";
+#define argErr      "Invalid arguments.\n"
+#define flagErr     "%s is not a recognised flag.\n"
+#define noOpenFile  "No file is currently open.\n"
+#define fileOpen    "A file is currently open. Type 'close' to close it.\n"
+#define notSaved    "The file could not be saved.\n"
 
 ///The manual entries:
 char* manual[AVAILABLECMDS] = {
@@ -32,12 +32,10 @@ char* manual[AVAILABLECMDS] = {
     "\tPATH:\n"
         "\t\tA valid path on your computer, can be absolute or relative.\n"
         "\t\tIn case it's not provided, the shell will save to './vDisk', overwriting any previously saved disk.",
-"load DISKPATH [SAVEPATH]\n"
-    "\tLoads a previously saved disk from DISKPATH and tries to save the current disk in SAVEPATH.\n"
+"load DISKPATH \n"
+    "\tLoads a previously saved disk from DISKPATH. It doesn't save the current disk. \n"
     "\tDISKPATH:\n"
-        "\t\tA valid path to a previously saved disk on your computer.\n"
-    "\tSAVEPATH:\n"
-        "\t\tsee PATH in 'save'",
+        "\t\tA valid path to a previously saved disk on your computer.\n",
 "cd [PATH]\n"
     "\tChanges the directory to the specified PATH.\n"
     "\tPATH:\n"
@@ -108,158 +106,156 @@ char* manual[AVAILABLECMDS] = {
     "\tRemoves the last line of a currently open file."
 };
 
-///Command Functions:
-void printManual(int argc, char** argv) {
-    if(argc>1) printf(argErr);
-    else if(argc==1) {
-            int idx=getCmdIdx(argv[0]);
+void execute(commandStruct cmd) {
+    int command = getCmdIdx(cmd.command);
+    int argc = cmd.argNumber;
+    //man
+    if(command==0)  {
+        if(argc>1) printf(argErr);
+        else if(argc==1) {
+            int idx=getCmdIdx(cmd.arguments[0]);
             if(idx!=-1) printf("%s \n\n", manual[idx]);
-    } else for(int i=0; i<AVAILABLECMDS; i++) printf("%s \n\n", manual[i]);
-};
-    ///Session commands
-//exits the shell but tries and save the disk to file; -f doesn't save the disk
-void quit(int argc, char** argv){
-    if(currentlyOpen!=NULL) {printf(fileOpen); return; }
-    if((argc>2)||((argc==2)&&(strcmp(argv[0],"-f")!=0))) { printf(argErr); return; }
-    char* path = "vDisk";
-    const char* errMessage = "The disk couldn't be saved to file. \n";
-    saveVDisk();
-    if((argc==2)||((argc==1)&&(strcmp(argv[0], "-f")!=0))) path = argv[argc-1];
-    session = !writedisk(path);
-    if(session&&((argc==0)||(strcmp(argv[0], "-f")!=0))) printf(errMessage);
-};
-//saves the disk to file
-void save(int argc, char** argv){
-    if(argc>1) { printf(argErr); return; }
-    if(currentlyOpen!=NULL) {printf(fileOpen); return; }
-    char* path = (argc==1) ? argv[0] : "vDisk";
-    saveVDisk();
-    if(!writedisk(path)) printf("The disk couldn't be saved to file. \n");
-};
-//loads a disk from file
-void load(int argc, char** argv){
-    if(currentlyOpen!=NULL) {printf(fileOpen); return; }
-    if((argc<1)||(argc>2)) printf(argErr);
-    else {
-        char* newArgv[] = {argv[argc-1]};
-        save(argc-1, newArgv);
-        readdisk(argv[0]);
-        initStructs();
+        } else for(int i=0; i<AVAILABLECMDS; i++) printf("%s \n\n", manual[i]);
     }
-};
-    ///Directory commands
-//changes the working directory to the specified directory; to root if no argument provided
-void cd(int argc, char** argv){
-    if(currentlyOpen!=NULL) {printf(fileOpen); return; }
-    if(argc>1) printf(argErr);
-    else if(argc==1) mychdir(parsePath(argv[0]));
-    else mychdir(root);
-};
-//lists the contents of the directory specified; the current if no arguments provided
-void ls(int argc, char** argv){
-    if(currentlyOpen!=NULL) {printf(fileOpen); return; }
-    char* contents;
-    if(argc>1) printf(argErr);
-    else if(argc==1) contents = mylistpath(parsePath(argv[0]));
-    else contents = mylistdir(workingDir);
-    printf("%s\n", contents);
-    free(contents);
-};
-//creates a new directory (together with specified subdirectories); can accept absolute path
-void mkDir(int argc, char** argv){
-    if(currentlyOpen!=NULL) {printf(fileOpen); return; }
-    if(argc!=1) printf(argErr);
-    else mymkdir(parsePath(argv[0]));
-};
-//removes a file or directory (-f removes all subdirectories too)
-void rm(int argc, char** argv){
-    if(currentlyOpen!=NULL) {printf(fileOpen); return; }
-    if((argc==0)||(argc>2)) printf(argErr);
-    else {
-        pathStruct path;
-        if(argc==1) {
-                path = parsePath(argv[0]);
-                if(path.isFile) myremove(path);
-                else if(path.dir->childrenNo==0) myrmdir(path);
-                else printf("The directory is not empty!\n");
-        } else if(strcmp(argv[0], "-f")==0) {
-                path = parsePath(argv[1]);
-                if(path.isFile) myremove(path);
-                else myrmdir(path);
-        } else printf(flagErr, argv[0]);
+    //quit
+    else if(command==1)  {
+        if(opened!=NULL) {printf(fileOpen); return; }
+        if((argc>2)||((argc==2)&&(strcmp(cmd.arguments[0],"-f")!=0))) { printf(argErr); return; }
+        char* path = "vDisk";
+        const char* errMessage = "The disk couldn't be saved to file. \n";
+        saveVDisk();
+        if((argc==2)||((argc==1)&&(strcmp(cmd.arguments[0], "-f")!=0))) path = cmd.arguments[argc-1];
+        session = !writedisk(path);
+        if(session&&((argc==0)||(strcmp(cmd.arguments[0], "-f")!=0))) printf(errMessage);
     }
-};
-//moves a file/directory to a specified directory; also used to rename stuff
-void mv(int argc, char** argv){
-    if(currentlyOpen!=NULL) {printf(fileOpen); return; }
-    if(argc!=2) printf(argErr);
-    else myMvDir(parsePath(argv[0]), parsePath(argv[1]));
-};
-//copies a file/directory to a specified directory
-void cp(int argc, char** argv){
-    if(currentlyOpen!=NULL) {printf(fileOpen); return; }
-    if(argc!=2) printf(argErr);
-    else myCpDir(parsePath(argv[0]), parsePath(argv[1]));
-};
-    ///File editing commands
-//opens an existing file or creates a new one if it doesn't exist
-void myOpen(int argc, char** argv){
-    if(currentlyOpen!=NULL) {printf(fileOpen); return; }
-    if((argc==0)||(argc>2)) printf(argErr);
-    else {
-        if((argc==1)||(strcmp(argv[0], "-w")==0)) currentlyOpen = myfopen(parsePath(argv[argc-1]), "w");
-        else if (strcmp(argv[0], "-r")==0) currentlyOpen = myfopen(parsePath(argv[argc-1]), "r");
-        else printf(flagErr, argv[0]);
+    //save
+    else if(command==2)  {
+        if(argc>1) { printf(argErr); return; }
+        if(opened!=NULL) {printf(fileOpen); return; }
+        char* path = (argc==1) ? cmd.arguments[0] : "vDisk";
+        saveVDisk();
+        if(!writedisk(path)) printf("The disk couldn't be saved to file. \n");
     }
-};
-//closes the open file and saves its contents to disk
-void closef(int argc, char** argv){
-    if(argc>1) printf(argErr);
-    else if(currentlyOpen == NULL) printf(noOpenFile);
-    else if(argc==0) {
-        saveFile();
-        myfclose();
-    } else if(strcmp(argv[0], "-e")==0) myfclose();
-    else printf(flagErr, argv[0]);
-};
-//saves the contents of an open file to the virtual disk
-void savef(int argc, char** argv){
-    if(argc!=0) printf(argErr);
-    else if (currentlyOpen == NULL) printf(noOpenFile);
-    else saveFile();
-};
-// prints to screen the contents of an open file, or a specified file without opening it
-void myRead(int argc, char** argv){
-    if((currentlyOpen==NULL)||(argc==1)) {
+    //load
+    else if(command==3)  {
+        if(opened!=NULL) {printf(fileOpen); return; }
         if(argc!=1) printf(argErr);
-        else readFile(parsePath(argv[0]));
-    } else {
-        if(argc!=0) printf(argErr);
-        else printFile();
-    };
-};
-// reads the last line of an open file
-void readl(int argc, char** argv){
-    if(argc>1) printf(argErr);
-    else if(currentlyOpen == NULL) printf(noOpenFile);
-    else if(argc==0) printLine(0);
-    else {
-        printLine(atoi(argv[0]));
-        for(int i=0; i<(strlen(argv[0])+1); i++) if((argv[0][i]<'1')||(argv[0][i]>'9')) {
-            printf("The argument is not a number.");
-            return;
+        else {
+            readdisk(cmd.arguments[0]);
+            initStructs();
         }
     }
-};
-// appends a line to an open file
-void writel(int argc, char** argv){
-    if(argc>1) printf(argErr);
-    else if(currentlyOpen == NULL) printf(noOpenFile);
-    else appendLine(argv[0]);
-};
-// removes the last line of an open file
-void removel(int argc, char** argv){
-    if(argc!=0) printf(argErr);
-    else if(currentlyOpen == NULL) printf(noOpenFile);
-    else deleteLine();
-};
+    //cd
+    else if(command==4)  {
+        if(opened!=NULL) {printf(fileOpen); return; }
+        if(argc>1) printf(argErr);
+        else if(argc==1) mychdir(parsePath(cmd.arguments[0]));
+        else mychdir(root);
+    }
+    //ls
+    else if(command==5)  {
+        if(opened!=NULL) {printf(fileOpen); return; }
+        char* contents;
+        if(argc>1) printf(argErr);
+        else if(argc==1) contents = mylistpath(parsePath(cmd.arguments[0]));
+        else contents = mylistdir(workingDir);
+        printf("%s\n", contents);
+    }
+    //mkdir
+    else if(command==6)  {
+        if(opened!=NULL) {printf(fileOpen); return; }
+        if(argc!=1) printf(argErr);
+        else mymkdir(parsePath(cmd.arguments[0]));
+    }
+    //rm
+    else if(command==7)  {
+        if(opened!=NULL) {printf(fileOpen); return; }
+        if((argc==0)||(argc>2)) printf(argErr);
+        else {
+            pathStruct path;
+            if(argc==1) {
+                    path = parsePath(cmd.arguments[0]);
+                    if(path.isFile) myremove(path);
+                    else if(path.dir->childrenNo==0) myrmdir(path);
+                    else printf("The directory is not empty!\n");
+            } else if(strcmp(cmd.arguments[0], "-f")==0) {
+                    path = parsePath(cmd.arguments[1]);
+                    if(path.isFile) myremove(path);
+                    else myrmdir(path);
+            } else printf(flagErr, cmd.arguments[0]);
+        }
+    }
+    //mv
+    else if(command==8)  {
+        if(opened!=NULL) {printf(fileOpen); return; }
+        if(argc!=2) printf(argErr);
+        else myMvDir(parsePath(cmd.arguments[0]), parsePath(cmd.arguments[1]));
+    }
+    //cp
+    else if(command==9) {
+        if(opened!=NULL) {printf(fileOpen); return; }
+        if(argc!=2) printf(argErr);
+        else myCpDir(parsePath(cmd.arguments[0]), parsePath(cmd.arguments[1]));
+    }
+    //open
+    else if(command==10) {
+        if(opened!=NULL) {printf(fileOpen); return; }
+        if((argc==0)||(argc>2)) printf(argErr);
+        else {
+            if((argc==1)||(strcmp(cmd.arguments[0], "-w")==0)) opened = myfopen(parsePath(cmd.arguments[argc-1]), "w");
+            else if (strcmp(cmd.arguments[0], "-r")==0) opened = myfopen(parsePath(cmd.arguments[argc-1]), "r");
+            else printf(flagErr, cmd.arguments[0]);
+        }
+    }
+    //close
+    else if(command==11) {
+        if(argc>1) printf(argErr);
+        else if(opened == NULL) printf(noOpenFile);
+        else if(argc==0) {
+            saveFile();
+            myfclose();
+        } else if(strcmp(cmd.arguments[0], "-e")==0) myfclose();
+        else printf(flagErr, cmd.arguments[0]);
+    }
+    //sf
+    else if(command==12) {
+        if(argc!=0) printf(argErr);
+        else if (opened == NULL) printf(noOpenFile);
+        else saveFile();
+    }
+    //rd
+    else if(command==13) {
+        if((opened==NULL)||(argc==1)) {
+            if(argc!=1) printf(argErr);
+            else readFile(parsePath(cmd.arguments[0]));
+        } else {
+            if(argc!=0) printf(argErr);
+            else printFile();
+        }
+    }
+    //rl
+    else if(command==14) {
+        if(argc>1) printf(argErr);
+        else if(opened == NULL) printf(noOpenFile);
+        else if(argc==0) printLine(1);
+        else {
+            for(int i=0; i<strlen(cmd.arguments[0]); i++) if((cmd.arguments[0][i]<'1')||(cmd.arguments[0][i]>'9')) {
+                printf("The argument is not a number.\n");
+                return;
+            }
+            printLine(atoi(cmd.arguments[0]));
+        }
+    }
+    //wl
+    else if(command==15) {
+        if(argc!=1) printf(argErr);
+        else if(opened == NULL) printf(noOpenFile);
+        else appendLine(cmd.arguments[0]);
+    }
+    //rml
+    else if(command==16){
+        if(argc!=0) printf(argErr);
+        else if(opened == NULL) printf(noOpenFile);
+        else deleteLine();
+    }
+}

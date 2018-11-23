@@ -16,19 +16,20 @@
 #define FALSE 0
 #endif
 
-#define MAXBLOCKS     1024
-#define BLOCKSIZE     1024
-#define FATENTRYCOUNT (BLOCKSIZE / sizeof(fatentry_t))
-#define FATBLOCKSNO  (MAXBLOCKS / FATENTRYCOUNT )
-#define DIRENTRYCOUNT 8
-#define MAXNAME       121
-#define MAXPATHLENGTH 1024
+#define MAXBLOCKS       1024
+#define BLOCKSIZE       1024
+#define FATENTRYCOUNT   (BLOCKSIZE / sizeof(fatentry_t))
+#define FATBLOCKSNO     (MAXBLOCKS / FATENTRYCOUNT )
+#define MAXARGS         16
+#define DIRENTRYCOUNT   8
+#define MAXNAME         121
+#define MAXPATHLENGTH   1024
 
-#define UNUSED        -1
-#define ENDOFCHAIN     0
+#define UNUSED          -1
+#define ENDOFCHAIN      0
 
 #ifndef EOF
-#define EOF           -1
+#define EOF             -1
 #endif
 
 typedef unsigned char Byte ;
@@ -42,11 +43,11 @@ typedef Byte datablock_t [ BLOCKSIZE ] ;
 
 /// create a type direntry_t
 typedef struct dirEntry {
-    time_t      modtime; //time 0 if unused
-    fatentry_t  firstblock; // first block of a file; dirblock of the entry for subdirectories?
-    char        childrenNo; //supports a maximum of 127 children; -1 if it's a file
-    char        name[MAXNAME]; // name of the entry
-} direntry_t; //size of a single entry is 128
+    time_t      modtime;
+    fatentry_t  fBlock;     // first block of a file; -1 if it's a file
+    char        childrenNo;     //supports a maximum of 127 children; -1 if it's a file
+    char        name[MAXNAME];  // name of the entry
+} direntry_t;                   //size of a single entry is 128
 
 ///a directory block is an array of directory entries
 typedef direntry_t dirblock_t [DIRENTRYCOUNT];
@@ -61,16 +62,16 @@ typedef union block {
 /// created when a file is opened on the disk
 typedef struct filedescriptor {
    char        mode[2] ;
-   fatentry_t  firstBlock ;
-   fatentry_t  blockNo ;           // block no
-   int         pos     ;           // byte within a block
+   fatentry_t  fBlock ;
+   fatentry_t  blockNo ;        // block no
+   int         pos     ;        // byte within a block
    diskblock_t buffer  ;
 } MyFILE;
 
 typedef struct fileSystemNode {
-    char* name; //name of the file or directory
+    char name[MAXNAME];         //name of the file or directory
     time_t modTime;
-    fatentry_t firstBlock;
+    fatentry_t fBlock;
     struct fileSystemNode* parent;
     int childrenNo;
     struct fileSystemNode** children;
@@ -81,8 +82,8 @@ typedef struct {
     bool isValid;
     //The directory the path points at
     dirNode* dir;
-    //NULL terminating array of non-existing path "components"; determines path validity
-    char* nonExisting[16];
+    //Array of non-existing path "components"; determines path validity
+    char nonExisting[MAXARGS][MAXNAME];
 } pathStruct;
 
 

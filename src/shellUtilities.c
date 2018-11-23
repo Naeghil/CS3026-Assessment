@@ -17,8 +17,7 @@ commandStruct parse(char* cmdStr) {
     //Initialize the command
     commandStruct cmd;
     cmd.argNumber = 0;
-    cmd.command = malloc(sizeof(char)*MAXCMD);
-    memset(cmd.command, '\0', sizeof(char)*MAXCMD);
+    memset(cmd.command, '\0', MAXCMD);
     //Eliminate the final newline
     char* pos;
     if ((pos=strchr(cmdStr, '\n')) != NULL) *pos = '\0';
@@ -32,32 +31,29 @@ commandStruct parse(char* cmdStr) {
         if((token[0]== '\"')&&(token[strlen(token)-1]!= '\"')) {
             //otherwise it's a SPACED ARGUMENT
             char buff[BLOCKSIZE];
-            unsigned int buffSize = sizeof(token);
             memset(buff, '\0', BLOCKSIZE);
             strcpy(buff, token);
             strcat(buff, " ");
             token = strtok(NULL, "\"");
-            buffSize += sizeof(token);
-            if(buffSize<=BLOCKSIZE) {
+            if((strlen(buff)+sizeof(token)+1)<=BLOCKSIZE) {
                 strcat(buff, token);
                 strcat(buff, "\"");
             } else {
-                printf("The spaced argument provided was too long");
+                printf("The spaced argument provided was too long.\n");
                 memset(cmd.command, '\0', MAXCMD);
                 return cmd;
             };
-            cmd.arguments[cmd.argNumber] = malloc(buffSize);
-            memset(cmd.arguments[cmd.argNumber], '\0', buffSize);
-            strcpy(cmd.arguments[cmd.argNumber], buff);
+            memset(cmd.arguments[cmd.argNumber], '\0', MAXCMD);
+            for(int i=0; i<strlen(buff)+1; i++) cmd.arguments[cmd.argNumber][i] = buff[i];
         } else {
-            cmd.arguments[cmd.argNumber] = malloc((strlen(token)));
-            strcpy(cmd.arguments[cmd.argNumber], token);
+            memset(cmd.arguments[cmd.argNumber], '\0', strlen(token)+1);
+            for(int i=0; i<strlen(token)+1; i++) cmd.arguments[cmd.argNumber][i] = token[i];
         }
         token = strtok(NULL, " ");
         cmd.argNumber++;
     }
     if (cmd.argNumber>MAXARGS) {
-        printf("the maximum number of arguments has been reached");
+        printf("The maximum number of arguments has been reached.\n");
         memset(cmd.command, '\0', MAXCMD);
     }
     return cmd;

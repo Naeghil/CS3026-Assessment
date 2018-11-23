@@ -58,7 +58,7 @@ void myMvDir( pathStruct, pathStruct );
 //copies source to destination
 void myCpDir( pathStruct, pathStruct );
 void recurCp(dirNode*, dirNode*);
-dirNode* cpyFile(dirNode*);
+dirNode* cpyFile(char*, dirNode*);
 //Computes a pathStruct out of a path string and checks its validity
 pathStruct parsePath(char*);
 //returns the full path of the working directory, with ending colon
@@ -72,6 +72,7 @@ void writeFat();
 void writeDirectory();
 //Writes FAT and directory to disk; this shouldn't take care of eventually open files;
 void saveVDisk();
+//Initializes runtime structures
 void initStructs();
 
 
