@@ -5,6 +5,7 @@
 
 extern bool session;
 dirNode* workingDir;
+dirNode* directoryHierarchy;
 
 int main(int argc, char * argv[]) {
     initialize();

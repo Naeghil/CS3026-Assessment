@@ -122,7 +122,7 @@ void saveVDisk() {
 
 pathStruct parsePath(char* str) {
     pathStruct toRet;
-    for(int i=0; i<MAXARGS; i++) memset(toRet.nonExisting, '\0', MAXNAME);
+    for(int i=0; i<MAXARGS; i++) memset(toRet.nonExisting[i], '\0', MAXNAME);
     toRet.isValid = true;
     toRet.isFile = false;
     toRet.dir = NULL;
@@ -216,7 +216,7 @@ void mymkdir(pathStruct path) {
             where->children[0] = createNode(path.nonExisting[i], -1, 1, where);
             where = where->children[0];
         }
-        //leaves a size 1 array; who cares
+        //leaves a size 1 array
         where->childrenNo = 0;
     }
 }
@@ -224,8 +224,9 @@ void mymkdir(pathStruct path) {
 void myremove (pathStruct path) {
     if(!path.isValid || !path.isFile || path.nonExisting[0][0]!='\0') printf(pathErr);
     else {
-        removeDir(path.dir->parent, path.dir);
+        for(fatentry_t ptr = path.dir->fBlock; ptr!=ENDOFCHAIN; ptr=FAT[ptr]) freeBlock(ptr);
         freeChain(path.dir->fBlock);
+        removeDir(path.dir->parent, path.dir);
         free(path.dir);
     }
 }
@@ -234,24 +235,30 @@ void myrmdir (pathStruct path) {
     if(!path.isValid || path.isFile || path.nonExisting[0][0]!='\0') printf(pathErr);
     else {
         //Adjust the parent's parameters
-        dirNode* ptr = path.dir->parent;
-        time(&ptr->modTime);
-        int j = 0;
-        while(ptr->children[j]!=path.dir) j++;
-        for(int i=j; i<ptr->childrenNo-1; i++) ptr->children[i] = ptr->children[i+1];
-        ptr->childrenNo--;
-        //delete the directory recursively
-        recurRmDir(path.dir);
-        free(path.dir);
-    }
-}
-void recurRmDir( dirNode* dir){
-    for(int i=0; i<dir->childrenNo; i++) {
-        if(dir->children[i]->fBlock!=-1) {
-            removeDir(dir, dir->children[i]);
-            freeChain(dir->children[i]->fBlock);
-        } else recurRmDir(dir->children[i]);
-        free(dir->children[i]);
+        if(strcmp(path.dir->name, "root")==0) {
+            printf("You can't remove the root!\n");
+            return;
+        }
+        dirNode* children[MAXBLOCKS*DIRENTRYCOUNT];
+        int nodes = 0;
+        int idx =1;
+        children[0] = path.dir;
+        while(nodes<idx) {
+            for(int i=0; i<children[nodes]->childrenNo; i++) {
+                children[idx] = children[nodes]->children[i];
+                idx++;
+            } nodes++;
+        }
+        removeDir(path.dir->parent, path.dir);
+        nodes--;
+        while(nodes>=0){
+            if(children[nodes]->fBlock!=-1){
+                for(fatentry_t ptr = children[nodes]->fBlock; ptr!=ENDOFCHAIN; ptr=FAT[ptr]) freeBlock(ptr);
+                freeChain(children[nodes]->fBlock);
+            }
+            free(children[nodes]);
+            nodes--;
+        }
     }
 }
 
@@ -279,6 +286,10 @@ void myMvDir(pathStruct source, pathStruct dest) {
 void myCpDir(pathStruct source, pathStruct dest) {
     if(!source.isValid || !dest.isValid || dest.isFile || source.nonExisting[0][0]!='\0') printf(pathErr);
     else {
+        if (source.dir->childrenNo>0) {
+            printf("Cannot copy a non-empty folder.\n");
+            return;
+        }
         //Prepare ptrs
         dirNode* destPtr = dest.dir;
         if(dest.nonExisting[0][0]!='\0') {
@@ -292,31 +303,18 @@ void myCpDir(pathStruct source, pathStruct dest) {
             name = malloc(sizeof(srcPtr->name)+6);
             strcpy(name, "Copyof");
             strcat(name, srcPtr->name);
-        }
-        else name = srcPtr->name;
+        } else name = srcPtr->name;
         if(srcPtr->fBlock==-1){
             appendDir(destPtr, createNode(name, srcPtr->fBlock, 0, destPtr));
-            recurCp(srcPtr, destPtr);
         } else appendDir(destPtr, cpyFile(name, srcPtr));
-        printf("%d\n", destPtr->children[destPtr->childrenNo-1]->fBlock);
-    }
-}
-
-void recurCp(dirNode* source, dirNode* dest) {
-    for(int i=0; i<source->childrenNo; i++) {
-        dirNode* ptr = source->children[i];
-        if(source->fBlock!=-1) {
-            appendDir(dest, createNode(ptr->name, ptr->fBlock, 0, dest));
-            recurCp(ptr, dest->children[i]);
-        } else appendDir(dest, cpyFile(source->name, source));
     }
 }
 
 MyFILE* myfopen (pathStruct path, const char * mode) {
     MyFILE * toOpen = NULL;
     //Identify the file
-    dirNode* file = path.dir;
     if(!path.isValid) { printf(pathErr); return toOpen; }
+    dirNode* file = path.dir;
     if(!path.isFile) {
         char filename[MAXNAME];
         memset(filename, '\0', MAXNAME);
@@ -375,9 +373,24 @@ void readFile( pathStruct path ) {
 void printLine( int n ) {
     saveFile();
     if((opened->blockNo==opened->fBlock)&&(opened->pos==0)) return;
+    int pos = opened->pos-1;
+    if(pos<0) {
+        fatentry_t prev = opened->fBlock;
+        while(FAT[prev]!= opened->blockNo) prev = FAT[prev];
+        readblock(&(opened->buffer), prev);
+        opened->blockNo = prev;
+        pos = BLOCKSIZE+pos;
+    }
     for(int i = 0; i<n; i++) {
        //Finding the last newline
-        int pos = opened->pos-2;
+        pos--;
+        if(pos<0) {
+            fatentry_t prev = opened->fBlock;
+            while(FAT[prev]!= opened->blockNo) prev = FAT[prev];
+            readblock(&(opened->buffer), prev);
+            opened->blockNo = prev;
+            pos = BLOCKSIZE+pos;
+        }
         while(opened->buffer.data[pos]!='\n'){
             if(pos!=0) pos--;
             else if(opened->blockNo != opened->fBlock){
@@ -446,10 +459,10 @@ void myfputc (char newc) {
         saveFile();
         opened->buffer = resetBlock();
         opened->pos = 0;
-        opened->blockNo = getNewBlock(opened->blockNo);
-        if(opened->blockNo == -2) myfclose();
+        fatentry_t newB = getNewBlock(opened->blockNo);
+        if(newB!=-2) opened->blockNo = newB;
+        else myfclose();
     }
-    if(opened!=NULL) opened->buffer.data[opened->pos] = EOF;
 }
 
 void myfremc() {
@@ -512,11 +525,17 @@ dirNode* cpyFile(char* name, dirNode* file) {
     toRet = newFile(name, NULL);
     newPtr = toRet->fBlock;
     diskblock_t buff = resetBlock();
+    ptr = file->fBlock;
     //Copy
-    for(ptr = file->fBlock; ptr!=ENDOFCHAIN; ptr = FAT[ptr]) {
+    readblock(&buff, ptr);
+    writeblock(&buff, newPtr);
+    ptr = FAT[ptr];
+    while(ptr!=ENDOFCHAIN){
+        newPtr = getNewBlock(newPtr);
         readblock(&buff, ptr);
         writeblock(&buff, newPtr);
-        newPtr = getNewBlock(newPtr);
+        ptr = FAT[ptr];
     }
+
     return toRet;
 }

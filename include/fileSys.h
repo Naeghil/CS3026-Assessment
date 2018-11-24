@@ -46,7 +46,6 @@ void mymkdir ( pathStruct );
 void myremove ( pathStruct );
 //Removes an existing directory and all its contents recursively, or file
 void myrmdir ( pathStruct );
-void recurRmDir(dirNode*);
 //Changes into an existing directory
 void mychdir ( pathStruct );
 //Returns a string of \t separated contents of a directory
@@ -57,7 +56,6 @@ char * mylistdir ( dirNode* );
 void myMvDir( pathStruct, pathStruct );
 //copies source to destination
 void myCpDir( pathStruct, pathStruct );
-void recurCp(dirNode*, dirNode*);
 dirNode* cpyFile(char*, dirNode*);
 //Computes a pathStruct out of a path string and checks its validity
 pathStruct parsePath(char*);

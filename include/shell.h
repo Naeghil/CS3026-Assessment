@@ -3,7 +3,7 @@
 
 #include "fileSys.h"
 
-#define MAXCMD 256
+#define MAXCMD 1024
 #define MAXARGS 16
 #define AVAILABLECMDS 17
 

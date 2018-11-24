@@ -21,10 +21,8 @@ char* manual[AVAILABLECMDS] = {
     "\tand subsequently provides a description for the command and its arguments.\n"
     "\tCOMMAND:\n"
         "\t\tOne of the available commands; all the commands are described if no argument is provided",
-"quit [PATH] \n"
-    "\t Tries to save the virtual disk to PATH. If successful, it exits the shell. \n"
-    "\tPATH:\n"
-        "\t\tsee 'save'\n"
+"quit \n"
+    "\t Exits the shell. DOES NOT save the disk\n"
 "save [PATH]\n"
     "\tTries to save the virtual disk to PATH.\n"
     "\tPATH:\n"
@@ -66,7 +64,7 @@ char* manual[AVAILABLECMDS] = {
         "\t\tA valid path on the virtual disk.\n"
         "\t\tIf SOURCE points to a file or subdirectory contained in the same directory specified by DESTINATION, the command effectively renames the file or subdirectory.",
 "cp SOURCE DESTINATION\n"
-    "\tCopies the file or directory from SOURCE to the directory specified by DESTINATION.\n"
+    "\tCopies the file or empty folder from SOURCE to the directory specified by DESTINATION.\n"
     "\tSOURCE:\n"
         "\t\tA valid path on the virtual disk. It can be absolute or relative.\n"
     "\tDESTINATION:\n"
@@ -117,13 +115,8 @@ void execute(commandStruct cmd) {
     //quit
     else if(command==1)  {
         if(opened!=NULL) {printf(fileOpen); return; }
-        if(argc>1) { printf(argErr); return; }
-        char* path = "vDisk";
-        const char* errMessage = "The disk couldn't be saved to file. \n";
-        saveVDisk();
-        if(argc=1) path = cmd.arguments[0];
-        session = !writedisk(path);
-        if(session) printf(errMessage);
+        if(argc!=0) { printf(argErr); return; }
+        session = false;
     }
     //save
     else if(command==2)  {
